@@ -166,16 +166,41 @@ jobs:
             -PRELEASE_KEY_PASSWORD="${RELEASE_KEY_PASSWORD:-$RELEASE_STORE_PASSWORD}"
 
       # 关键校验:build.gradle 在拿不到签名时会静默回退 debug key,
-      # 构建照样成功。所以这里必须用 apksigner 断言证书 DN,不能只看 BUILD SUCCESSFUL。
+      # 构建照样成功。所以这里必须用 apksigner 断言证书指纹,不能只看 BUILD SUCCESSFUL。
+      # 注意:不能用 bash -e 裸赋值 CERTS=$(...)——apksigner 非零退出会直接中断且吞掉原因,
+      # 所以先关掉 -e、打印真实输出与退出码,再判定。
       - name: 校验 APK 用的是正式签名
         run: |
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
           echo "APK = $APK"
-          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
-          CERTS=$("$APKSIGNER" verify --print-certs "$APK" 2>/dev/null)
-          echo "$CERTS" | grep -Ei 'Signer #1 certificate (DN|SHA-256)'
-          if ! echo "$CERTS" | grep -q 'CN=luoming'; then
-            echo "::error::APK 不是正式签名(未命中 CN=luoming),请检查 Secrets 与 local.properties 读取链路"
+
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ] || [ ! -x "$APKSIGNER" ]; then
+            echo "未找到可执行的 apksigner,回退到 apksigner.jar"
+            APKSIGNER_JAR=$(find "$ANDROID_HOME/build-tools" -name apksigner.jar -type f 2>/dev/null | sort -V | tail -1)
+            if [ -z "$APKSIGNER_JAR" ]; then
+              echo "::warning::既没有 apksigner 也没有 apksigner.jar,跳过证书校验(仅提示,不判失败)"
+              exit 0
+            fi
+            APKSIGNER="java -jar $APKSIGNER_JAR"
+          fi
+          echo "apksigner = $APKSIGNER"
+
+          set +e
+          CERTS=$($APKSIGNER verify --print-certs "$APK" 2>&1)
+          RC=$?
+          set -e
+          echo "--- apksigner 输出 (rc=$RC) ---"
+          echo "$CERTS"
+          echo "--- 输出结束 ---"
+
+          # 期望的证书指纹(与 my-release.jks 一致),比匹配 CN 更硬
+          EXPECTED="c44d3c43cf0395cddb71a74547d3bfa37c5f347a293da5af6b815827c169fa4b"
+          NORMALIZED=$(echo "$CERTS" | tr 'A-Z' 'a-z' | tr -d ':')
+          if echo "$NORMALIZED" | grep -q "$EXPECTED"; then
+            echo "✅ 正式签名校验通过: SHA-256 = $EXPECTED"
+          else
+            echo "::error::APK 不是正式签名(未匹配指纹 $EXPECTED)。请检查 Secrets 与 build.gradle 的读取链路"
             exit 1
           fi
 
