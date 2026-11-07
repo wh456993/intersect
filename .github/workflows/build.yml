@@ -83,3 +83,111 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+  # 正式版(签名)构建。
+  # 签名密钥不进仓库:keystore 以 base64 存进 Secret KEYSTORE_BASE64,
+  # 构建时还原到 $RUNNER_TEMP,并通过 -P 参数传给 Gradle(build.gradle 支持
+  # local.properties / -P / 环境变量 三种来源,CI 走 -P)。
+  release:
+    name: 构建正式版 APK
+    # PR 来自 fork 时拿不到 Secret,跳过这个 job(跑也只会失败)。
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 移除本机专属的 aapt2 路径覆盖
+        run: sed -i '/aapt2FromMavenOverride/d' gradle.properties
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 定位并导出 Android SDK 路径
+        run: |
+          SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          if [ ! -d "$SDK" ]; then
+            echo "::error::找不到预装的 Android SDK: $SDK"
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "SDK = $SDK"
+
+      - name: 安装 compileSdk 36 所需的 SDK 组件
+        run: |
+          SDKMANAGER=$(ls "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | head -1)
+          if [ -z "$SDKMANAGER" ]; then SDKMANAGER=$(command -v sdkmanager || true); fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::找不到 sdkmanager"
+            exit 1
+          fi
+          echo "sdkmanager = $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: 配置 Gradle 缓存
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: 赋予 gradlew 执行权限
+        run: chmod +x gradlew
+
+      - name: 检查签名 Secret 是否已配置
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KS_B64" ]; then
+            echo "::error::缺少 Secret KEYSTORE_BASE64。请在仓库 Settings → Secrets and variables → Actions 中添加:KEYSTORE_BASE64 / RELEASE_STORE_PASSWORD / RELEASE_KEY_ALIAS / RELEASE_KEY_PASSWORD"
+            exit 1
+          fi
+
+      - name: 还原签名密钥
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          printf '%s' "$KS_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          ls -l "$RUNNER_TEMP/release.jks"
+
+      - name: 构建正式版 APK
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          ./gradlew assembleRelease --no-daemon --stacktrace \
+            -PRELEASE_STORE_FILE="$RUNNER_TEMP/release.jks" \
+            -PRELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD" \
+            -PRELEASE_KEY_ALIAS="$RELEASE_KEY_ALIAS" \
+            -PRELEASE_KEY_PASSWORD="${RELEASE_KEY_PASSWORD:-$RELEASE_STORE_PASSWORD}"
+
+      # 关键校验:build.gradle 在拿不到签名时会静默回退 debug key,
+      # 构建照样成功。所以这里必须用 apksigner 断言证书 DN,不能只看 BUILD SUCCESSFUL。
+      - name: 校验 APK 用的是正式签名
+        run: |
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          echo "APK = $APK"
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK" 2>/dev/null)
+          echo "$CERTS" | grep -Ei 'Signer #1 certificate (DN|SHA-256)'
+          if ! echo "$CERTS" | grep -q 'CN=luoming'; then
+            echo "::error::APK 不是正式签名(未命中 CN=luoming),请检查 Secrets 与 local.properties 读取链路"
+            exit 1
+          fi
+
+      - name: 上传正式版 APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: intersect-release-apk
+          path: app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      # 密钥文件不留到 job 结束
+      - name: 清理还原的密钥
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"

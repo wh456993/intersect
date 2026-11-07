@@ -4,9 +4,50 @@ plugins {
   id 'org.jetbrains.kotlin.plugin.compose'
 }
 
+// 签名信息读取顺序:根目录 local.properties(本机/AndroidIDE) → -P 项目属性 → 同名环境变量。
+// 该 properties 文件已在 .gitignore 中,密码与别名不入库;CI 云编译用 -P 参数传入 GitHub Secrets。
+// 三者都没有时 hasReleaseSigning 为 false,release 会退回 debug 签名并在构建日志里警告。
+def localProps = new Properties()
+def localPropsFile = rootProject.file('local.properties')
+if (localPropsFile.exists()) {
+  // 必须用 UTF-8 读:Properties.load(InputStream) 默认按 ISO-8859-1 解码,
+  // 一旦签名文件路径里含中文就会读成乱码,导致签名被静默回退成 debug key。
+  localPropsFile.withReader('UTF-8') { localProps.load(it) }
+}
+def signingProp = { String name ->
+  def v = localProps.getProperty(name)
+  // 其次是 -P 项目属性:Gradle daemon 是长驻进程,System.getenv 只能看到 daemon 启动时的环境,
+  // 客户端临时设的环境变量它读不到,所以 CI 也支持用 -PRELEASE_XXX=... 传入。
+  if (v == null || v.trim().isEmpty()) {
+    v = findProperty(name)
+  }
+  if (v == null || v.trim().isEmpty()) {
+    v = System.getenv(name)
+  }
+  (v != null && !v.toString().trim().isEmpty()) ? v.toString().trim() : null
+}
+def relStoreFilePath = signingProp('RELEASE_STORE_FILE') ?: 'my-release.jks'
+def relStoreFileResolved = rootProject.file(relStoreFilePath)
+def relStorePassword = signingProp('RELEASE_STORE_PASSWORD')
+def relKeyAlias = signingProp('RELEASE_KEY_ALIAS')
+def relKeyPassword = signingProp('RELEASE_KEY_PASSWORD') ?: relStorePassword
+def hasReleaseSigning = relStoreFileResolved.exists() && relStorePassword && relKeyAlias
+
 android {
   namespace 'com.reimei.intersect'
   compileSdk 36
+
+  // 正式签名(必须在 buildTypes 之前声明,Groovy 是顺序执行的)
+  signingConfigs {
+    release {
+      if (hasReleaseSigning) {
+        storeFile relStoreFileResolved
+        storePassword relStorePassword
+        keyAlias relKeyAlias
+        keyPassword relKeyPassword
+      }
+    }
+  }
 
   defaultConfig {
     applicationId "com.reimei.intersect"
@@ -20,11 +61,16 @@ android {
 
   buildTypes {
     release {
-      // 与 debug 用同一个密钥(~/.android/debug.keystore):
-      // 这样 release 包能直接覆盖安装现有的测试包,不用卸载 —— 卸载会清掉应用数据。
-      // 代价:debug key 签的包不能上架 Google Play,也不适合对外分发。
-      // 该 keystore 已备份到 backup/keystore/,丢了就再也产不出能覆盖安装的包。
-      signingConfig signingConfigs.debug
+      // 正式签名:密钥信息来自 local.properties(不入库),密钥文件为根目录 my-release.jks。
+      // 注意:换成新密钥后,旧的 release 包无法覆盖安装,必须卸载重装(会清掉应用数据);
+      // debug 包仍用 debug key,不受影响。
+      // 未配置签名时回退 debug key,保证本地/CI 不被卡死,但不要用于分发。
+      if (hasReleaseSigning) {
+        signingConfig signingConfigs.release
+      } else {
+        logger.warn("[signing] 未找到 release 签名配置,release 包将退回 debug 签名(不可用于分发):${relStoreFileResolved}")
+        signingConfig signingConfigs.debug
+      }
       // 上线包开混淆 + 资源裁剪:这个应用没有反射序列化(报文只用平台 org.json),
       // 暂时不需要额外的 keep 规则;将来引入 Gson/Moshi/kotlinx.serialization 必须补 proguard-rules.pro
       minifyEnabled true
