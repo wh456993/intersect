@@ -1,0 +1,30 @@
+package com.reimei.intersect.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+val white = Color(0xFFFFFFFF)
+val white1 = Color(0xFFF7F7F7)
+val white2 = Color(0xFFEDEDED)
+val white3 = Color(0xFFE5E5E5)
+val black = Color(0xFF000000)
+val black3 = Color(0xFF191919)
+val grey1 = Color(0xFF888888)
+val grey3 = Color(0xFF767676)
+val grey4 = Color(0xFFB2B2B2)
+val green1 = Color(0xFFB0EB6E)
+val green3 = Color(0xFF67BF63)
+val red1 = Color(0xFFDF5554)
+val blue1 = Color(0xFF1E8AE5)
+
+// 暗色模式:底色一层层比亮色深一档,层次关系与亮色一致(页面 → 列表 → 底栏)
+val night1 = Color(0xFF121212)
+val night2 = Color(0xFF1A1A1A)
+val night3 = Color(0xFF1F1F1F)
+val night4 = Color(0xFF262626)
+val nightText = Color(0xFFD6D6D6)
+val nightTextSecondary = Color(0xFF8A8A8A)
+val nightTextSection = Color(0xFF7A7A7A)
+val nightIcon = Color(0xFFC9C9C9)
+val nightGreen = Color(0xFF3A6B33)
+val nightOnGreen = Color(0xFFE9F2E5)
+val nightMore = Color(0xFF5A5A5A)

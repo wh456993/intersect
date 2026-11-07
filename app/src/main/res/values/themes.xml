@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 窗口外观:标题栏由 Compose 自己画,这里只关掉系统 ActionBar 并让状态栏透明。
+         界面的实际配色在 Compose 主题对象里,不读这里的颜色。 -->
+    <style name="Theme.Intersect" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/paper</item>
+        <item name="colorSecondary">@color/mist</item>
+        <item name="android:windowBackground">@color/fog</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">true</item>
+        <item name="android:windowTranslucentNavigation">true</item>
+    </style>
+
+    <!-- 启动 Activity 用这个:无标题栏,内容全交给 Compose -->
+    <style name="Theme.Intersect.Shell">
+        <item name="windowActionBar">false</item>
+        <item name="windowNoTitle">true</item>
+    </style>
+</resources>

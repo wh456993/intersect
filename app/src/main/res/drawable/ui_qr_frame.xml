@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 由 tools/make_ui_icons.js 生成,坐标即在脚本里定义 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:pathData="M3.2,3.2h5.6v5.6h-5.6z"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.7"
+      android:strokeLineJoin="round" />
+  <path
+      android:pathData="M15.2,3.2h5.6v5.6h-5.6z"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.7"
+      android:strokeLineJoin="round" />
+  <path
+      android:pathData="M3.2,15.2h5.6v5.6h-5.6z"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.7"
+      android:strokeLineJoin="round" />
+  <path
+      android:pathData="M16,16L20.4,16L20.4,20.4L16,20.4Z"
+      android:fillColor="#FF000000" />
+  <path
+      android:pathData="M11.6,3.6L13.6,3.6L13.6,5.6L11.6,5.6Z"
+      android:fillColor="#FF000000" />
+  <path
+      android:pathData="M11.6,11.6L13.6,11.6L13.6,13.6L11.6,13.6Z"
+      android:fillColor="#FF000000" />
+  <path
+      android:pathData="M3.6,11.6L5.6,11.6L5.6,13.6L3.6,13.6Z"
+      android:fillColor="#FF000000" />
+</vector>

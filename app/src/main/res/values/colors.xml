@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 取自应用图标(罗盘星)的灰蓝阶,界面配色统一从这里取 -->
+    <color name="ink">#FF1F2A33</color>
+    <color name="slate">#FF4E6476</color>
+    <color name="mist">#FF8BA3B2</color>
+    <color name="fog">#FFF2F5F7</color>
+    <color name="paper">#FFFFFFFF</color>
+    <color name="accent">#FF3A6E8F</color>
+</resources>
