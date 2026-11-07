@@ -69,7 +69,7 @@ fun MeListTopBar(onClick: () -> Unit, onStatusClick: () -> Unit) {
         .align(Alignment.CenterVertically)
         .padding(start = 24.dp),
       size = 64.dp,
-      shape = RoundedCornerShape(6.dp)
+      shape = CircleShape
     )
     Column(
       Modifier

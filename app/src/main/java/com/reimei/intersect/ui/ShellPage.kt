@@ -223,13 +223,16 @@ fun HomeShell() {
           onRestored = { viewModel.reloadFromStores(context) }
         )
 
+        // 隐私政策:与开屏页同一份正文的只读模式(顶栏 + 返回 + 撤销授权)
+        MeMenu.Privacy -> PrivacyPolicyPage(onBack = { viewModel.closeMeMenu() })
+
         else -> MeSettingPage(
           menu = meMenu,
           onBack = { viewModel.closeMeMenu() }
         )
       }
     }
-    // 开发者验权页:盖在设置页之上
+    // 开发者控制台页:盖在设置页之上
     SlideOverlay(payload = Unit.takeIf { viewModel.showDeveloper }) {
       val intersectMode = viewModel.contacts.firstOrNull { it.id == DawnAssistant.ID }?.roleplayMode
         ?: RoleplayMode.SELF_INSERT

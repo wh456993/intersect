@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -44,7 +45,7 @@ import kotlinx.coroutines.withContext
 fun MeAvatar(
   modifier: Modifier = Modifier,
   size: Dp = 64.dp,
-  shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(6.dp)
+  shape: androidx.compose.ui.graphics.Shape = CircleShape
 ) {
   val context = LocalContext.current
   val bitmap = MeProfile.avatarBitmap(context)
@@ -193,7 +194,7 @@ private fun AvatarRow(onClick: () -> Unit) {
       fontSize = 16.sp,
       color = AppTheme.colors.textPrimary
     )
-    MeAvatar(size = 52.dp, shape = RoundedCornerShape(8.dp))
+    MeAvatar(size = 52.dp)
     Spacer(Modifier.width(8.dp))
     Icon(
       painterResource(R.drawable.ui_chevron_right),

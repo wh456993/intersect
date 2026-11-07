@@ -101,7 +101,7 @@ class MainViewModel : ViewModel() {
   var apiKeyEdit: ApiKeyEditTarget? by mutableStateOf(null)
     private set
 
-  /** 开发者验权页是否展开在设置页之上。 */
+  /** 开发者控制台页是否展开在设置页之上。 */
   var showDeveloper by mutableStateOf(false)
     private set
 
@@ -187,7 +187,7 @@ class MainViewModel : ViewModel() {
     showDeveloper = true
   }
 
-  /** 退出开发者页就要重新验权,这里只关页面,不保留已解锁状态。 */
+  /** 退出开发者页就关掉控制台页。 */
   fun closeDeveloper() {
     showDeveloper = false
   }

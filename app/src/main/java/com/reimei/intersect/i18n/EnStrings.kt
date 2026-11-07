@@ -56,7 +56,7 @@ internal object EnStrings {
     "还没开启" to "Not yet",
     "仍然进入" to "Enter anyway",
     "继续授权" to "Continue granting",
-    "开源协议及隐私政策" to "Licenses & privacy policy",
+    "开源协议及隐私政策" to "Privacy Policy & Licenses",
     "开启必要权限" to "Grant required permissions",
     "已完成全部授权" to "All permissions granted",
     "可稍后再授权" to "You can grant these later",
@@ -128,7 +128,14 @@ internal object EnStrings {
     "API KEY 管理" to "API KEYs",
     "Token统计" to "Token usage",
     "支持开发者" to "Support the developer",
-    "隐私政策" to "Privacy policy",
+    "隐私政策" to "Privacy Policy & Licenses",
+    "撤销授权" to "Revoke consent",
+    "清空本机记录的同意状态并退出应用,不会删除任何数据;下次打开需重新同意本协议" to
+      "Clear the consent recorded on this device and exit. No data is deleted; you will need to accept this agreement again next time",
+    "确认撤销授权?" to "Revoke consent?",
+    "撤销后应用会立即退出,不会删除你的角色、聊天记录或 API KEY。下次打开需要重新阅读并同意本协议才能进入。" to
+      "The app will close right away. Your characters, chats and API KEYs are kept; next time you open the app you must read and accept this agreement again",
+    "撤销并退出" to "Revoke and exit",
     "小先" to "Xiaoxian",
     "平行宇宙没有交点......" to "Parallel universes never intersect...",
     "欢迎加入" to "Welcome",
@@ -275,8 +282,6 @@ internal object EnStrings {
     "深色模式" to "Dark mode",
     "外观" to "Appearance",
     "从最近任务隐藏" to "Hide from recent tasks",
-    "开发者口令" to "Developer passcode",
-    "验证" to "Verify",
     "聊天" to "Chat",
 
     // ---- 用量页 ----

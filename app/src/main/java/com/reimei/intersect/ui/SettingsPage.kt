@@ -5,9 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.Icon
 import androidx.compose.material.Switch
 import androidx.compose.material.SwitchDefaults
@@ -16,20 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.reimei.intersect.R
 import com.reimei.intersect.data.BackgroundSetting
-import com.reimei.intersect.data.DevAccess
 import com.reimei.intersect.data.LangMode
 import com.reimei.intersect.data.LangSetting
 import com.reimei.intersect.data.RoleplayMode
@@ -44,7 +33,7 @@ import com.reimei.intersect.ui.theme.AppTheme
  * 语言与明暗都只显示当前值,点进去是同一个版式的选择页:
  * [LanguagePage](中文 / English / 跟随系统)与 [ThemePage](浅色 / 深色 / 跟随系统)。
  * 后台常驻与最近任务隐藏在改动的当下就去启停服务 / 调整任务卡片;
- * 最后一项是开发者入口,点进去要先过口令校验才看得到内容。
+ * 最后一项是开发者入口,点进去直接进开发者控制台。
  */
 @Composable
 fun SettingsPage(
@@ -204,9 +193,7 @@ private fun SettingsRow(title: String, value: String? = null, onClick: () -> Uni
 }
 
 /**
- * 开发者页:8 位口令验权,过了才进控制台。
- *
- * 口令不落在源码里,只用 [DevAccess] 做哈希比对;控制台状态只属于本次进入,退出即需要重新验证。
+ * 开发者页:直接进开发者控制台,不再做口令验权。
  */
 @Composable
 fun DeveloperPage(
@@ -215,112 +202,10 @@ fun DeveloperPage(
   onSwitchIntersectMode: (RoleplayMode) -> Unit,
   onBack: () -> Unit
 ) {
-  var unlocked by remember { mutableStateOf(false) }
-  if (unlocked) {
-    DevConsole(
-      modifier,
-      onBack = onBack,
-      intersectMode = intersectMode,
-      onSwitchIntersectMode = onSwitchIntersectMode
-    )
-  } else {
-    LockedDeveloperPage(modifier, onBack = onBack, onUnlock = { unlocked = true })
-  }
-}
-
-@Composable
-private fun LockedDeveloperPage(
-  modifier: Modifier = Modifier,
-  onBack: () -> Unit,
-  onUnlock: () -> Unit
-) {
-  BackHandler { onBack() }
-
-  var input by remember { mutableStateOf("") }
-  var error by remember { mutableStateOf<String?>(null) }
-
-  fun submit() {
-    if (DevAccess.verify(input)) {
-      error = null
-      onUnlock()
-    } else {
-      error = "口令不正确"
-      input = ""
-    }
-  }
-
-  Column(
-    modifier
-      .fillMaxSize()
-      .blockTouchesThrough()
-      .background(AppTheme.colors.background)
-  ) {
-    TitleBar(title = "开发者", onBack = onBack)
-    Column(
-      Modifier
-        .fillMaxSize()
-        .imePadding()
-        .padding(horizontal = 12.dp, vertical = 12.dp),
-      horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-      Column(
-        Modifier
-          .fillMaxWidth()
-          .clip(RoundedCornerShape(12.dp))
-          .background(AppTheme.colors.listItem)
-          .padding(horizontal = 16.dp, vertical = 16.dp)
-      ) {
-        Text("开发者口令", fontSize = 16.sp, color = AppTheme.colors.textPrimary)
-        Spacer(Modifier.height(12.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          BasicTextField(
-            value = input,
-            onValueChange = {
-              if (it.length <= DevAccess.PASSWORD_LENGTH) {
-                input = it
-                error = null
-              }
-            },
-            modifier = Modifier.weight(1f),
-            textStyle = TextStyle(
-              fontSize = 16.sp,
-              color = AppTheme.colors.textPrimary,
-              textAlign = TextAlign.Start
-            ),
-            singleLine = true,
-            cursorBrush = SolidColor(AppTheme.colors.iconCurrent),
-            visualTransformation = PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(
-              keyboardType = KeyboardType.Password,
-              imeAction = ImeAction.Done
-            ),
-            keyboardActions = KeyboardActions(onDone = { submit() })
-          )
-          Spacer(Modifier.width(12.dp))
-          Box(
-            Modifier
-              .clip(RoundedCornerShape(8.dp))
-              .background(AppTheme.colors.iconCurrent)
-              .clickable(enabled = input.isNotEmpty()) { submit() }
-              .padding(horizontal = 16.dp, vertical = 8.dp)
-          ) {
-            Text(
-              "验证",
-              fontSize = 14.sp,
-              fontWeight = FontWeight.Medium,
-              color = AppTheme.colors.listItem
-            )
-          }
-        }
-        if (error != null) {
-          Text(
-            error!!,
-            Modifier.padding(top = 8.dp),
-            fontSize = 12.sp,
-            color = AppTheme.colors.badge
-          )
-        }
-      }
-    }
-  }
+  DevConsole(
+    modifier,
+    onBack = onBack,
+    intersectMode = intersectMode,
+    onSwitchIntersectMode = onSwitchIntersectMode
+  )
 }

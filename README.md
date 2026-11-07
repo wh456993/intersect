@@ -53,4 +53,4 @@ sh gradlew :app:assembleDebug
 
 ## 许可
 
-本项目代码以 MIT 协议发布,见 [LICENSE](LICENSE)。
+本项目代码以 Apache-2.0 协议发布,见 [LICENSE](LICENSE)。

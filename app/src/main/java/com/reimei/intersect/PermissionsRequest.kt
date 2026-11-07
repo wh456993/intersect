@@ -135,6 +135,17 @@ internal fun Context.acceptAgreement(prefs: SharedPreferences) {
   prefs.edit().putBoolean(KEY_AGREEMENT_ACCEPTED, true).apply()
 }
 
+/**
+ * 撤销协议同意(入口在「我 → 隐私政策」页底部)。
+ *
+ * 只清「已同意」这一个标记:角色、聊天记录、API KEY、用量账本、偏好设置全部原样保留。
+ * 清掉之后 [isActivationCompleted] 立刻变为 false,下次打开应用会重新落在开屏协议页,
+ * 重新同意即可进入主界面(四项权限此前若已授权,确认协议后直接放行,不用再走一遍)。
+ */
+internal fun Context.revokeAgreement(prefs: SharedPreferences) {
+  prefs.edit().putBoolean(KEY_AGREEMENT_ACCEPTED, false).apply()
+}
+
 /** 用户选择「稍后再说」:记下跳过标记,之后启动直接进主界面。 */
 internal fun Context.skipActivation(prefs: SharedPreferences) {
   prefs.edit().putBoolean(KEY_ACTIVATION_SKIPPED, true).apply()

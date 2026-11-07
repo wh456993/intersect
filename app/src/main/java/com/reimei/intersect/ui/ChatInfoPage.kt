@@ -102,7 +102,7 @@ fun ChatInfoPage(
           .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
       ) {
-        UserAvatar(chat.friend, size = 52.dp, shape = RoundedCornerShape(8.dp))
+        UserAvatar(chat.friend, size = 52.dp)
         Column(
           Modifier
             .weight(1f)

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.BackHandler
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
@@ -14,8 +15,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
 import androidx.compose.material.Icon
 import com.reimei.intersect.i18n.Text
@@ -37,12 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.reimei.intersect.ui.AgreementDocument
 import com.reimei.intersect.ui.HomeShell
 import com.reimei.intersect.ui.LangButton
 import com.reimei.intersect.ui.LanguagePage
 import com.reimei.intersect.ui.SlideOverlay
+import com.reimei.intersect.ui.findActivity
 import com.reimei.intersect.ui.theme.AppTheme
-import com.reimei.intersect.ui.theme.green3
 import com.reimei.intersect.ui.theme.white
 
 /** 激活页左右两侧的留白,协议页和权限页共用,保证翻页时文字基线一致。 */
@@ -99,6 +103,12 @@ private fun ActivationFlow(
   val context = LocalContext.current
   // 协议确认过就不再展示第 1 页
   var page by remember { mutableStateOf(context.activationStartPage(prefs)) }
+
+  // 开屏模式:还没进主界面,物理返回键直接退出应用。
+  // 不拦的话由 Activity 默认处理,同样会 finish;这里显式拦下是为了与
+  // 「我 → 隐私政策」的只读模式区分开——那边返回只回上一级,绝不退出应用。
+  val activity = context.findActivity()
+  BackHandler { activity?.finishAffinity() }
   val pageOffset by animateFloatAsState(
     targetValue = page.toFloat(),
     animationSpec = spring(
@@ -246,7 +256,12 @@ private fun ActivationFlow(
   }
 }
 
-/** 第 1 页:协议与隐私政策。正文内容待补充,现在只放标题。 */
+/**
+ * 第 1 页:开源协议及隐私政策。
+ *
+ * 正文很长(全文见 [AgreementDocument]),在标题下方单独滚动:
+ * 标题与底部圆形箭头固定,只有正文跟着手指走,滚到底后点箭头即视为同意并进入下一页。
+ */
 @Composable
 private fun AgreementPage(modifier: Modifier, onNext: () -> Unit) {
   Box(modifier.fillMaxSize()) {
@@ -256,7 +271,7 @@ private fun AgreementPage(modifier: Modifier, onNext: () -> Unit) {
         .statusBarsPadding()
         .padding(horizontal = PAGE_PADDING)
     ) {
-      Spacer(Modifier.height(112.dp))
+      Spacer(Modifier.height(96.dp))
       Text(
         text = "开源协议及隐私政策",
         fontSize = 32.sp,
@@ -264,6 +279,17 @@ private fun AgreementPage(modifier: Modifier, onNext: () -> Unit) {
         fontWeight = FontWeight.Bold,
         color = AppTheme.colors.textPrimary
       )
+      Spacer(Modifier.height(18.dp))
+      Column(
+        Modifier
+          .weight(1f)
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState())
+      ) {
+        AgreementDocument()
+        // 给底部的圆形箭头留出位置,滚到最底时最后一段不会被它压住
+        Spacer(Modifier.height(140.dp))
+      }
     }
     CircleArrowButton(
       enabled = true,
@@ -364,7 +390,7 @@ private fun PermissionTaskRow(task: PermTask, done: Boolean, onClick: () -> Unit
   }
 }
 
-/** 未授权时是一个灰色箭头,校验通过后弹出一个绿色小勾。 */
+/** 未授权时是一个灰色箭头,校验通过后弹出一个主色小勾。 */
 @Composable
 private fun TaskStateBadge(done: Boolean) {
   val checkScale by animateFloatAsState(
@@ -375,6 +401,8 @@ private fun TaskStateBadge(done: Boolean) {
     )
   )
   val arrowAlpha by animateFloatAsState(targetValue = if (done) 0f else 1f)
+  // Canvas 的绘制 lambda 不是 @Composable,主色得先在组合里取好再传进去
+  val accent = AppTheme.colors.iconCurrent
 
   Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) {
     if (arrowAlpha > 0.01f) {
@@ -396,7 +424,7 @@ private fun TaskStateBadge(done: Boolean) {
             scaleY = checkScale
           }
       ) {
-        drawCircle(color = green3, radius = size.minDimension / 2)
+        drawCircle(color = accent, radius = size.minDimension / 2)
         val stroke = size.minDimension * 0.12f
         val path = Path().apply {
           moveTo(size.width * 0.28f, size.height * 0.53f)

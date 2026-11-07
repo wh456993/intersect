@@ -25,3 +25,6 @@ app/build/
 
 # IDE 工程配置含本机设备序列号,不入库
 .idea/
+
+# 本地生成的项目结构树(含本机路径),不入库
+PROJECT_TREE.txt

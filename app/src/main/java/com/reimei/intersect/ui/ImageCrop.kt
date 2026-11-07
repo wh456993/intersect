@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.exifinterface.media.ExifInterface
+import com.reimei.intersect.ui.theme.accentNight
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -216,7 +217,8 @@ private fun CropTopBar(saving: Boolean, onCancel: () -> Unit, onDone: () -> Unit
         .clickable(enabled = !saving, onClick = onDone)
         .padding(12.dp),
       fontSize = 15.sp,
-      color = if (saving) Color(0xFF888888) else Color(0xFF67BF63)
+      // 裁切页始终是黑底,「确定」用亮星蓝:与全站的主交互色保持一致,在黑底上也够亮
+      color = if (saving) Color(0xFF888888) else accentNight
     )
   }
 }
