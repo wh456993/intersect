@@ -1,0 +1,66 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 构建 Debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      # gradle.properties 里有一条本机 AndroidIDE 专用的 aapt2 路径覆盖
+      # (android.aapt2FromMavenOverride=/data/user/0/...),runner 上不存在,
+      # 留着会让 aapt2 指向不存在的文件。只在 CI 里删掉,不改仓库内容。
+      - name: 移除本机专属的 aapt2 路径覆盖
+        run: sed -i '/aapt2FromMavenOverride/d' gradle.properties
+
+      - name: 安装 JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 准备 Android SDK 命令行工具
+        uses: android-actions/setup-android@v3
+
+      - name: 安装 compileSdk 36 所需的 SDK 组件
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: 配置 Gradle 缓存
+        uses: gradle/actions/setup-gradle@v4
+
+      # 仓库里的 gradlew 没有可执行位,直接 ./gradlew 会 Permission denied
+      - name: 赋予 gradlew 执行权限
+        run: chmod +x gradlew
+
+      - name: 运行单元测试
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
+      - name: 构建 Debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: 上传 APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: intersect-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
