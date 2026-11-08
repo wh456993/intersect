@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.reimei.intersect.R
 import com.reimei.intersect.data.BackgroundSetting
+import com.reimei.intersect.data.DevMode
 import com.reimei.intersect.data.LangMode
 import com.reimei.intersect.data.LangSetting
 import com.reimei.intersect.data.RoleplayMode
@@ -88,6 +89,15 @@ fun SettingsPage(
           onCheckedChange = { BackgroundSetting.setHideFromRecents(context, it) }
         )
         SettingsDivider()
+        // 开发者模式开关:已按需求注释掉 —— 设置里留一个只有「显示全部」用途的开关没什么意义,
+        // 开发者入口直接走下面那条「开发者」(点进去就是开发者控制台,编码 / 记忆索引在那里看)。
+        // 保留代码是为了以后想恢复时直接解注释,不必重写(DevMode 本身仍在使用,见 ConversationPage)。
+        // SettingsSwitchRow(
+        //   title = "开发者模式",
+        //   checked = DevMode.enabled,
+        //   onCheckedChange = { DevMode.setEnabled(context, it) }
+        // )
+        // SettingsDivider()
         SettingsRow(title = "开发者", onClick = onOpenDeveloper)
       }
     }

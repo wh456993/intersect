@@ -219,7 +219,70 @@ internal object EnStrings {
     "恢复" to "Restore",
     "事件线" to "Timeline",
     "记忆库" to "Memory",
+    "即时记忆 / 时间线索引 / 长期记忆" to "Immediate memory / Timeline index / Long-term memory",
+    "即时记忆层" to "Immediate memory",
+    "时间线索引层" to "Timeline index",
+    "长期记忆层" to "Long-term memory",
+    "把每段记忆按发生时间排成一条线,方便按时间回看角色经历过什么。" to
+      "Lines every memory up by the time it happened, so you can look back at what the character has been through.",
+    "把反复出现的人、地点与约定沉淀成长期设定,不必每次都从总结里推断。" to
+      "Distills recurring people, places and promises into long-term settings instead of inferring them from summaries.",
+    "即将上线" to "Coming soon",
+    "总结目标长度" to "Summary length",
+    "每 20 轮对话自动总结一次;数值越大保留的细节越多,注入请求体时占的上下文也越多。" to
+      "Summarizes automatically every 20 rounds; a larger value keeps more detail and takes more context in each request.",
+    "重试" to "Retry",
+    "还没有即时记忆" to "No immediate memory yet",
+    "正在生成第一条总结..." to "Generating the first summary...",
+    "生成完会出现在这里,不用离开这个页面。" to "It will show up here when it is done; you can stay on this page.",
+    "每聊完 20 轮会自动总结一次,总结之后这些轮的原文不再发给模型,只发总结。" to
+      "Every 20 rounds are summarized automatically; after that those rounds are no longer sent verbatim, only the summary is.",
+    "开发者面板" to "Developer panel",
+    "当前轮数" to "Rounds so far",
+    "距下次总结" to "Rounds until next summary",
+    "上次总结时间" to "Last summary",
+    "还没有总结过" to "No summary yet",
+    "当前注入总结条数" to "Summaries injected",
+    "当前注入 token 估算" to "Injected token estimate",
+    "滑块当前值" to "Slider value",
+    "总结中..." to "Summarizing...",
+    "手动触发总结" to "Summarize now",
+    "查看最近一次请求体记忆部分" to "View memory part of the last request",
+    "收起最近一次请求体的记忆部分" to "Collapse memory part of the last request",
+    "还没有发过请求。下面是按现在的总结算出来的记忆块(下一轮会注入这一份):" to
+      "No request sent yet. Below is the memory block built from the current summaries (it will be injected next round):",
+    "上一轮请求里没有记忆块(那时还没有总结):system 仍带着记忆使用规则,记忆块整块省略。" to
+      "The last request had no memory block (there was no summary yet); the system prompt still carried the memory rules.",
+    "上一轮请求体里的记忆部分:" to "Memory part of the last request:",
+    "【暂无历史总结】这一轮不注入记忆块。" to "[No summary yet] no memory block is injected this round.",
+    "清空即时记忆" to "Clear immediate memory",
+    "清空即时记忆?" to "Clear immediate memory?",
+    "这一层里的全部总结、错误日志都会删掉(滑块值与当前进度保留),删除后无法恢复;之后新聊的轮次从头开始攒。" to
+      "All summaries and the error log in this layer are deleted (slider value and current progress are kept). This cannot be undone; new rounds start counting from scratch.",
+    "错误日志" to "Error log",
+    "没有错误" to "No errors",
+    "注入格式:system(角色卡 + 记忆规则) → 未总结原文 → 一条独立的记忆块 → 当前输入。" to
+      "Injection order: system (character card + memory rules) → raw unsummarized history → a separate memory block → current input.",
+    "还没有可以总结的轮次" to "No rounds to summarize yet",
     "地图管理器" to "Map manager",
+    "全选" to "Select all",
+    "取消全选" to "Deselect all",
+    "回滚" to "Roll back",
+    "回滚到这里" to "Roll back to here",
+    "退出多选" to "Exit multi-select",
+    "自定义总结提示词" to "Custom summary prompt",
+    "当前:自定义" to "Current: custom",
+    "当前:内置模板" to "Current: built-in template",
+    "打开后可以把总结请求的 system 换成自己写的一段(比如要求按时间线写、保留情绪变化)。" to
+      "Turn this on to replace the summary request's system prompt with your own (e.g. write along a timeline, keep emotional shifts).",
+    "已改用自定义提示词" to "Now using the custom prompt",
+    "已回到内置模板" to "Back to the built-in template",
+    "恢复默认" to "Restore default",
+    "已恢复内置模板" to "Built-in template restored",
+    "已保存,下次总结生效" to "Saved; takes effect on the next summary",
+    "总结提示词" to "Summary prompt",
+    "自定义" to "Custom",
+    "内置模板" to "Built-in template",
     "物品管理器" to "Inventory",
     "时间管理器" to "Time manager",
     "名称、性格、身份都已填写" to "Name, personality and identity are all filled in",
@@ -246,6 +309,8 @@ internal object EnStrings {
     "对方正在输入..." to "Typing...",
     "知道了" to "Got it",
     "附件" to "Attach",
+    "全部显示" to "Show all",
+    "收起全部" to "Hide all",
     "发送" to "Send",
     "多选" to "Select",
     "已选择" to "Selected",
@@ -281,6 +346,7 @@ internal object EnStrings {
     "浅色模式" to "Light mode",
     "深色模式" to "Dark mode",
     "外观" to "Appearance",
+    "开发者模式" to "Developer mode",
     "从最近任务隐藏" to "Hide from recent tasks",
     "聊天" to "Chat",
 
@@ -337,6 +403,26 @@ internal object EnStrings {
     "删除后无法恢复。" to "Cannot be recovered after deletion.",
     "登记物品,对话提到名称时自动补充简介" to "Register items; their descriptions are filled in when mentioned",
     "可留空,补充这件物品的说明" to "Optional, describe this item",
+
+    // ---- 记忆库 / 开发者控制台(补充) ----
+    "intersect 模式" to "Intersect mode",
+    "模式" to "Mode",
+    "本次请求体" to "This request",
+    "报文不是合法的 JSON 对象" to "The payload is not a valid JSON object",
+    "未命名角色" to "Unnamed character",
+    "还没有填写角色设定" to "No character prompt yet",
+    "这就是这一轮真正要发出去的报文,可以逐字改:再点「发送」才发出,点「取消」则整轮作废(原文回填输入框)。改动不写回「请求体」配置。" to
+      "This is the exact payload for this round. Edit it word by word if you like: tap Send again to send it, " +
+      "or Cancel to discard the whole round (the original text goes back to the input box). " +
+      "Edits are not written back to the Request body configuration.",
+    "角色设定在「角色」页填写,发送时会作为一条 system 消息插到最前面;这里只放请求体本身。" to
+      "The character prompt is set on the Character page and is inserted as the first system message when sending; " +
+      "only the payload itself goes here.",
+    "还没写内容,现在用的是内置模板;写一段再点保存。" to
+      "Nothing written yet, so the built-in template is used; write something and tap Save.",
+    "这条消息已经不在了。" to "This message is no longer here.",
+    "本轮总结期间删过消息或回滚过,结果已作废" to
+      "Messages were deleted or rolled back during this summary, so the result was discarded",
   )
   /**
    * 由变量拼出来的句子。
@@ -416,9 +502,43 @@ internal object EnStrings {
     Regex("选中的 (.+?) 条消息将被删除,且无法恢复。") to { m ->
       "The ${m.g(1)} selected messages will be deleted and cannot be recovered."
     },
+    Regex("从这条起的 (.+?) 条都会被删除,回到它之前的状态。删除后无法恢复。") to { m ->
+      // 英文没有量词问题,但单复数要处理:1 条时说 the 1 message 很别扭
+      if (m.g(1) == "1") {
+        "This message will be deleted and you will be back to the state before it. This cannot be undone."
+      } else {
+        "The ${m.g(1)} messages starting from this one will be deleted, returning to the state before it. " +
+          "This cannot be undone."
+      }
+    },
+    // 记忆库:总结进行中 / 结果 / 状态条与说明(轮数、目标长度都由常量拼出来)
+    Regex("正在总结前 (.+?) 轮对话\\.\\.\\.") to { m -> "Summarizing the last ${m.g(1)} rounds..." },
+    Regex("上次总结失败:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Last summary failed: ${m.g(1)}" },
+    Regex("总结失败:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Summary failed: ${m.g(1)}" },
+    Regex("总结完成 · 实际 (.+?) token") to { m -> "Summary done · ${m.g(1)} tokens" },
+    Regex("目标 (.+?) token · 实际 (.+?) token") to { m -> "Target ${m.g(1)} tokens · actual ${m.g(2)} tokens" },
+    Regex("每 (.+?) 轮对话自动总结一次;数值越大保留的细节越多,注入请求体时占的上下文也越多。") to { m ->
+      "Summarizes every ${m.g(1)} rounds; a larger value keeps more detail but takes up more context in the request."
+    },
+    Regex("每聊完 (.+?) 轮会自动总结一次,总结之后这些轮的原文不再发给模型,只发总结。") to { m ->
+      "After every ${m.g(1)} rounds a summary is generated automatically; from then on those raw rounds are no " +
+        "longer sent to the model, only the summary."
+    },
+    Regex("占位符:(.+?) 目标 token、(.+?) 目标下限\\(约 70%\\)。写成空文本会退回内置模板。") to { m ->
+      "Placeholders: ${m.g(1)} for the target tokens, ${m.g(2)} for the lower bound (about 70%). " +
+        "An empty text falls back to the built-in template."
+    },
+    Regex("已登记 (.+?) 件 · 对话提到名称时自动补充简介") to { m ->
+      "${m.g(1)} items registered · descriptions are filled in when mentioned"
+    },
+    Regex("已用 (.+?) / (.+?) 字符") to { m -> "Using ${m.g(1)} / ${m.g(2)} characters" },
     Regex("已复制 (.+?) 行到剪贴板") to { m -> "Copied ${m.g(1)} lines to the clipboard" },
     Regex("已保存:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Saved: ${m.g(1)}" },
     Regex("保存失败:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Save failed: ${m.g(1)}" },
+    // 开发者模式里 AI 回复下那条记忆索引(角色 UID / 用户 UID / 落盘时间)
+    Regex("记忆索引:角色 UID (.+?) · 用户 UID (.+?) · 存入 (.+)") to { m ->
+      "Memory index: character UID ${m.g(1)} · user UID ${m.g(2)} · stored ${m.g(3)}"
+    },
     Regex("没有可用的 API KEY。请到「我 → API KEY 管理」里添加一条与 (.+?) 地址匹配的配置。") to { m ->
       "No API KEY available. Go to 「Me → API KEY」 and add one that matches the ${m.g(1)} endpoint."
     },

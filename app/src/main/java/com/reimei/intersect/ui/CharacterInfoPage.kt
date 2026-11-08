@@ -47,14 +47,18 @@ private const val ROLE_MAX = 200
 /**
  * 角色信息页:从聊天信息页点角色名片进来。
  *
- * 这里是一层入口列表 —— 角色身份(已实现)及其它几项系统模块(开发中)。
- * 角色身份是本轮唯一的实页,其余先占位,下一轮再逐项做。
+ * 这里是一层入口列表 —— 角色身份、记忆库、物品管理器是本轮已实现的几项,其余几项是规划中的
+ * 系统模块(标「开发中」);Self-insert 角色还会多显示一行实时时间。
+ *
+ * 开发者控制台的「角色信息」页([com.reimei.intersect.ui.DevConsole] 里的
+ * [DevCharacterInfoPage])用的是同一套行样式,所以下面这些条目组件是 internal 的。
  */
 @Composable
 fun CharacterInfoPage(
   modifier: Modifier = Modifier,
   friend: User,
   onOpenIdentity: () -> Unit,
+  onOpenMemory: () -> Unit,
   onOpenItemManager: () -> Unit,
   onBack: () -> Unit,
 ) {
@@ -92,39 +96,11 @@ fun CharacterInfoPage(
         .verticalScroll(rememberScrollState())
     ) {
       // 名片:只是展示,点它自己没意义 —— 入口在下面的列表里
-      Row(
-        Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 12.dp)
-          .clip(RoundedCornerShape(12.dp))
-          .background(AppTheme.colors.listItem)
-          .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        UserAvatar(friend, size = 52.dp)
-        Column(
-          Modifier
-            .weight(1f)
-            .padding(start = 12.dp)
-        ) {
-          Text(
-            friend.name,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Medium,
-            color = AppTheme.colors.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
-          Text(
-            friend.signature?.takeIf { it.isNotBlank() } ?: "这个人很懒,什么都没写",
-            Modifier.padding(top = 4.dp),
-            fontSize = 12.sp,
-            color = AppTheme.colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
-        }
-      }
+      CharacterProfileCard(
+        avatar = friend,
+        name = friend.name,
+        detail = friend.signature?.takeIf { it.isNotBlank() } ?: "这个人很懒,什么都没写",
+      )
 
       Spacer(Modifier.height(12.dp))
 
@@ -135,16 +111,20 @@ fun CharacterInfoPage(
           .clip(RoundedCornerShape(12.dp))
           .background(AppTheme.colors.listItem)
       ) {
-        // 已实现的只有角色身份;其余几项是规划中的系统模块,先标开发中
+        // 已实现的是角色身份、记忆库与物品管理器;其余几项是规划中的系统模块,先标开发中
         CharacterEntryRow(
           title = "角色身份",
-          detail = identitySummary(friend),
+          detail = identitySummary(friend.name, friend.personality, friend.role),
           onClick = onOpenIdentity
         )
         CharacterDivider()
         ComingSoonRow("事件线")
         CharacterDivider()
-        ComingSoonRow("记忆库")
+        CharacterEntryRow(
+          title = "记忆库",
+          detail = "即时记忆 / 时间线索引 / 长期记忆",
+          onClick = onOpenMemory
+        )
         CharacterDivider()
         ComingSoonRow("地图管理器")
         CharacterDivider()
@@ -164,16 +144,58 @@ fun CharacterInfoPage(
   }
 }
 
+/** 角色信息页顶上的名片:头像 + 名字 + 一行副标题(签名 / 角色摘要)。 */
+@Composable
+internal fun CharacterProfileCard(
+  avatar: User,
+  name: String,
+  detail: String,
+) {
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp)
+      .clip(RoundedCornerShape(12.dp))
+      .background(AppTheme.colors.listItem)
+      .padding(16.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    UserAvatar(avatar, size = 52.dp)
+    Column(
+      Modifier
+        .weight(1f)
+        .padding(start = 12.dp)
+    ) {
+      Text(
+        name,
+        fontSize = 17.sp,
+        fontWeight = FontWeight.Medium,
+        color = AppTheme.colors.textPrimary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+      Text(
+        detail,
+        Modifier.padding(top = 4.dp),
+        fontSize = 12.sp,
+        color = AppTheme.colors.textSecondary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+    }
+  }
+}
+
 /** 角色身份这一行的副标题:说清它是哪三项,顺便提示已经填了没有。 */
-private fun identitySummary(friend: User): String {
-  val filled = listOf(friend.name.isNotBlank(), !friend.personality.isNullOrBlank(), !friend.role.isNullOrBlank())
+internal fun identitySummary(name: String, personality: String?, role: String?): String {
+  val filled = listOf(name.isNotBlank(), !personality.isNullOrBlank(), !role.isNullOrBlank())
   val count = filled.count { it }
   return if (count == 3) "名称、性格、身份都已填写" else "名称、性格、身份 · 已填写 $count 项"
 }
 
 /** 可进入的条目:标题 + 副标题 + 右侧箭头。 */
 @Composable
-private fun CharacterEntryRow(
+internal fun CharacterEntryRow(
   title: String,
   detail: String,
   onClick: () -> Unit,
@@ -208,7 +230,7 @@ private fun CharacterEntryRow(
 
 /** 还没做的条目:整行不可点,右侧标「开发中」,文字也要比别的行淡。 */
 @Composable
-private fun ComingSoonRow(title: String) {
+internal fun ComingSoonRow(title: String) {
   Row(
     Modifier
       .fillMaxWidth()
@@ -222,7 +244,7 @@ private fun ComingSoonRow(title: String) {
 
 /** Self-insert 角色的时间管理器:右侧实时显示本地年月日时分,不再是「开发中」。 */
 @Composable
-private fun TimeManagerRow(time: String) {
+internal fun TimeManagerRow(time: String) {
   Row(
     Modifier
       .fillMaxWidth()
@@ -235,7 +257,7 @@ private fun TimeManagerRow(time: String) {
 }
 
 @Composable
-private fun CharacterDivider() {
+internal fun CharacterDivider() {
   Box(
     Modifier
       .fillMaxWidth()

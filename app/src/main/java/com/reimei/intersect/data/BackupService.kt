@@ -309,26 +309,33 @@ object BackupService {
 /**
  * 把 [source] 里本机还没有的消息补到 [target] 末尾。
  *
- * 消息没有 id 也没有时间戳([Msg] 只有发送方 + 文本 + 已读),所以按「发送方 + 文本」
+ * 消息没有 id 也没有时间戳([Msg] 只有发送方 + 文本 + 已读 + 记忆索引),所以按「发送方 + 文本」
  * 做多重集差值:本机已有的同内容消息先抵消掉,剩下的是真正的新消息。
  * 这样同一份备份恢复两次不会把消息翻倍,本机原有的顺序也不会被打乱。
+ *
+ * 抵消掉的那条也不是什么都不做:备份里那份带记忆索引、本机那条没有时,把索引回填给本机那条
+ * —— 升级前发出的消息本来没有索引,恢复一次就能补上,不必白丢。
  *
  * @return 实际补进去的条数
  */
 internal fun mergeBackupMsgs(target: Chat, source: Chat): Int {
-  val remaining = HashMap<String, Int>()
+  // 按「发送方 + 文本」把本机消息分组:每命中一条就消掉一条,剩下的才算新消息
+  val remaining = HashMap<String, MutableList<Msg>>()
   target.msgs.forEach { msg ->
-    val key = msgsKey(msg)
-    remaining[key] = (remaining[key] ?: 0) + 1
+    remaining.getOrPut(msgsKey(msg)) { mutableListOf() }.add(msg)
   }
   var added = 0
   source.msgs.forEach { msg ->
-    val key = msgsKey(msg)
-    val count = remaining[key] ?: 0
-    if (count > 0) {
-      remaining[key] = count - 1
+    val pending = remaining[msgsKey(msg)]
+    val local = if (pending.isNullOrEmpty()) null else pending.removeAt(0)
+    if (local != null) {
+      // 同一轮本机已有:只把备份里的记忆索引补过去,不新增消息
+      if (local.memory == null) local.memory = msg.memory
     } else {
-      target.msgs.add(Msg(msg.from, msg.text, time = msg.time).apply { read = msg.read })
+      // 记忆索引跟着消息一起搬:恢复出来的那一轮仍然记得自己是谁、什么时候落过盘
+      target.msgs.add(
+        Msg(msg.from, msg.text, time = msg.time, memory = msg.memory).apply { read = msg.read }
+      )
       added++
     }
   }

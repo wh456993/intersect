@@ -73,4 +73,32 @@ class BackupMergeTest {
     mergeBackupMsgs(target, chat(unread))
     assertEquals(false, target.msgs.single().read)
   }
+
+  @Test
+  fun `补进来的消息带着记忆索引`() {
+    // 记忆索引是落盘时留下的身份与时间,恢复时不能丢:丢了这一轮就查不到是谁的号
+    val target = chat()
+    val stamp = MemoryStamp(characterUid = 3L, userUid = UidStore.ME_UID, storedAt = 1_700_000_000L)
+    mergeBackupMsgs(target, chat(Msg(friend, "在", memory = stamp)))
+    assertEquals(stamp, target.msgs.single().memory)
+  }
+
+  @Test
+  fun `本机已有那条消息时,备份里的记忆索引会回填给它`() {
+    // 升级前发出的消息没有索引;从备份恢复时不该再补一条,而是把索引补到本机那条上
+    val stamp = MemoryStamp(characterUid = 3L, userUid = UidStore.ME_UID, storedAt = 1_700_000_001L)
+    val target = chat(Msg(friend, "在"))
+    assertEquals(0, mergeBackupMsgs(target, chat(Msg(friend, "在", memory = stamp))))
+    assertEquals(1, target.msgs.size)
+    assertEquals(stamp, target.msgs.single().memory)
+  }
+
+  @Test
+  fun `本机那条已经有索引时不覆盖`() {
+    val local = MemoryStamp(characterUid = 3L, userUid = UidStore.ME_UID, storedAt = 1L)
+    val fromBackup = MemoryStamp(characterUid = 3L, userUid = UidStore.ME_UID, storedAt = 2L)
+    val target = chat(Msg(friend, "在", memory = local))
+    mergeBackupMsgs(target, chat(Msg(friend, "在", memory = fromBackup)))
+    assertEquals(local, target.msgs.single().memory)
+  }
 }

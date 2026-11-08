@@ -298,6 +298,7 @@ fun HomeShell() {
       CharacterInfoPage(
         friend = friend,
         onOpenIdentity = { viewModel.openCharacterIdentity() },
+        onOpenMemory = { viewModel.openMemory(friend.id) },
         onOpenItemManager = { viewModel.openItemManager(context, friend.id) },
         onBack = { viewModel.closeCharacterInfo() }
       )
@@ -313,6 +314,19 @@ fun HomeShell() {
             viewModel.saveCharacter(context, friend, name, personality, role)
             viewModel.closeCharacterIdentity()
           }
+        )
+      }
+    }
+    // 记忆库页:接在角色信息页之后(即时记忆层 / 时间线索引层 / 长期记忆层)
+    val memoryFriend = characterFriend?.takeIf { viewModel.memoryFriendId != null }
+    SlideOverlay(payload = memoryFriend) { friend ->
+      key(friend.id) {
+        MemoryLibraryPage(
+          friendId = friend.id,
+          apiKeyProvider = { viewModel.apiKeyForFriend(friend.id) },
+          roundsProvider = { viewModel.roundsOf(friend.id) },
+          version = viewModel.memoryVersion,
+          onBack = { viewModel.closeMemory() }
         )
       }
     }

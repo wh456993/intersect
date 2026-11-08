@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  debug(测试版)专用的应用名覆盖。
+
+  测试版的包名是 com.reimei.intersect.beta,可以和正式版同时装在一台设备上;
+  两个图标的显示名若都叫 intersect,桌面上就分不清哪个是测试版,所以这一份把名字改掉。
+  main 里的 app_name 保持不变,release 包不受影响。
+-->
+<resources>
+    <string name="app_name">intersect beta</string>
+</resources>

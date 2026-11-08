@@ -53,13 +53,21 @@ android {
     applicationId "com.reimei.intersect"
     minSdk 21
     targetSdk 30
-    versionCode 1
-    versionName "1.0"
+    versionCode 2
+    versionName "1.1"
 
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
   }
 
   buildTypes {
+    debug {
+      // 测试版单独一个包名:com.reimei.intersect.beta,可以和正式版同时装在一台设备上。
+      // 两套包名各自独立的私有数据(SharedPreferences / 数据库 / 文件),互不覆盖;
+      // namespace 不变,源码里的 R 与包路径都不需要改。
+      applicationIdSuffix '.beta'
+      // 桌面图标的名字由 app/src/debug/res/values/strings.xml 覆盖成 intersect beta:
+      // 两个包同时装着时,靠名字一眼分清哪个是测试版。
+    }
     release {
       // 正式签名:密钥信息来自 local.properties(不入库),密钥文件为根目录 my-release.jks。
       // 注意:换成新密钥后,旧的 release 包无法覆盖安装,必须卸载重装(会清掉应用数据);

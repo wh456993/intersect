@@ -21,8 +21,21 @@ data class User(
   val personality: String? = null,
   /** 角色卡的扮演模式;默认 Avatar-based(行为与既有逻辑一致)。 */
   val roleplayMode: RoleplayMode = RoleplayMode.AVATAR_BASED,
+  /**
+   * 唯一 ID:只在存储层用(每轮记忆索引里记它),对用户不可见。
+   *
+   * 和昵称 / 创建时间 / 签名都无关,创建角色时由 [UidStore] 按顺序发下来,之后就跟着这个
+   * 角色走 —— 连备份一起带走,恢复 / 换机都不变。null 表示老数据还没发号,读入时会补上。
+   */
+  val uid: Long? = null,
 ) {
   companion object {
-    val Me: User = User("self", MeProfile.DEFAULT_NAME, R.drawable.ui_avatar_me)
+    /** 「我」:UID 固定 1,由 [UidStore.ME_UID] 定义。 */
+    val Me: User = User(
+      "self",
+      MeProfile.DEFAULT_NAME,
+      R.drawable.ui_avatar_me,
+      uid = UidStore.ME_UID,
+    )
   }
 }

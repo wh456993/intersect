@@ -55,6 +55,14 @@ internal fun chatToJson(chat: Chat): JSONObject = JSONObject().apply {
       put("fromMe", msg.from.id == User.Me.id)
       put("text", msg.text)
       msg.time?.let { put("time", it) }
+      // 记忆索引只挂在 AI 回复上:角色 UID / 用户 UID / 落盘的秒级时间
+      msg.memory?.let { memory ->
+        put("memory", JSONObject().apply {
+          put("uid", memory.characterUid)
+          put("userUid", memory.userUid)
+          put("storedAt", memory.storedAt)
+        })
+      }
       put("read", msg.read)
     })
   }
@@ -75,6 +83,18 @@ internal fun chatFromJson(obj: JSONObject): Chat? {
           from = from,
           text = msgObj.optString("text"),
           time = msgObj.optString("time").takeIf { it.isNotEmpty() },
+          // 老数据没有这一项:整条缺任何一项就当没有索引,不拿默认值编一份出来
+          memory = msgObj.optJSONObject("memory")?.let { memory ->
+            if (!memory.has("uid") || !memory.has("userUid") || !memory.has("storedAt")) {
+              null
+            } else {
+              MemoryStamp(
+                characterUid = memory.optLong("uid"),
+                userUid = memory.optLong("userUid"),
+                storedAt = memory.optLong("storedAt"),
+              ).takeIf { it.storedAt > 0L }
+            }
+          },
         ).apply {
           read = msgObj.optBoolean("read", true)
         }

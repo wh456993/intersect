@@ -21,9 +21,11 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.reimei.intersect.data.BackgroundSetting
+import com.reimei.intersect.data.DevMode
 import com.reimei.intersect.data.Heartbeat
 import com.reimei.intersect.data.LangSetting
 import com.reimei.intersect.data.MeProfile
+import com.reimei.intersect.data.MemoryPromptStore
 import com.reimei.intersect.data.ThemeSetting
 import com.reimei.intersect.service.startKeepAlive
 import com.reimei.intersect.ui.theme.AppTheme
@@ -47,6 +49,10 @@ class MainActivity : AppCompatActivity() {
     LangSetting.init(this)
     // 后台设置(后台常驻 / 退出后从最近任务隐藏)
     BackgroundSetting.init(this)
+    // 开发者模式:关着时界面上没有任何存储层信息,开着主聊天才有「全部显示」入口
+    DevMode.init(this)
+    // 总结记忆提示词的自定义开关(开发者模式下可以在记忆库页改)
+    MemoryPromptStore.init(this)
     // 常驻开着的话顺手确认服务在跑:进程被系统回收后重启是全新进程,状态得自己接上
     if (BackgroundSetting.keepAlive) startKeepAlive()
 

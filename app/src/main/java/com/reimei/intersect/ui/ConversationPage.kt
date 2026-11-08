@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +57,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.reimei.intersect.R
 import com.reimei.intersect.MainViewModel
 import com.reimei.intersect.data.Chat
+import com.reimei.intersect.data.DevMode
 import com.reimei.intersect.data.Msg
 import com.reimei.intersect.data.User
 import com.reimei.intersect.ui.theme.AppTheme
@@ -83,6 +85,11 @@ fun ConversationPage(
   val context = LocalContext.current
   val clipboard = LocalClipboardManager.current
 
+  // 开发者模式:关着的时候这个页面上看不到任何存储层的东西
+  val devMode = DevMode.enabled
+  // 已点开「全部显示」:每条 AI 回复下面附带这一轮的记忆索引(角色 UID / 用户 UID / 落盘时间)
+  var showMemory by remember(chat) { mutableStateOf(false) }
+
   // 已读状态只在进入会话时写一次。以前放在组合体里,每帧重组都会扫一遍全部消息
   LaunchedEffect(chat) { viewModel.read(context, chat) }
 
@@ -92,6 +99,8 @@ fun ConversationPage(
   var menuMsg by remember(chat) { mutableStateOf<Msg?>(null) }
   // 待确认删除的消息,null 表示没有弹确认框
   var pendingDelete by remember(chat) { mutableStateOf<List<Msg>?>(null) }
+  // 待确认回滚的那条消息(它和它之后的都会被删掉),null 表示没有弹确认框
+  var pendingRollback by remember(chat) { mutableStateOf<Msg?>(null) }
 
   // 菜单开着时,返回先收起菜单;ConversationPage 比首页的预测性返回后注册,所以它优先
   BackHandler(enabled = menuMsg != null) { menuMsg = null }
@@ -107,12 +116,14 @@ fun ConversationPage(
     modifier.background(AppTheme.colors.background),
     topBar = {
       if (selectionMode) {
-        TitleBar("已选择 ${selected.size} 条", viewModel::clearSelection) {
-          BarAction("复制", AppTheme.colors.iconCurrent) { copySelected() }
-          BarAction("删除", AppTheme.colors.badge) {
-            pendingDelete = selected.toList()
-          }
-        }
+        SelectionTopBar(
+          count = selected.size,
+          allSelected = selected.size == chat.msgs.size,
+          onBack = viewModel::clearSelection,
+          onToggleAll = { viewModel.toggleSelectAll(chat) },
+          onCopy = copySelected,
+          onDelete = { pendingDelete = selected.toList() },
+        )
       } else {
         TitleBar(chat.friend.name, onBack) {
           Icon(
@@ -136,7 +147,20 @@ fun ConversationPage(
           replying = viewModel.replyingCount > 0,
           onDismissError = { viewModel.clearReplyError() }
         )
-        ChatBottomBar(onSend = { text -> viewModel.send(context, chat, text) })
+        ChatBottomBar(
+          onSend = { text -> viewModel.send(context, chat, text) },
+          // 开发者模式才出现的入口:点开把每一轮的记忆索引显示在 AI 回复那一侧
+          attachItems = if (devMode) {
+            listOf(
+              AttachItem(
+                label = if (showMemory) "收起全部" else "全部显示",
+                icon = R.drawable.ui_menu_bars,
+              ) { showMemory = !showMemory }
+            )
+          } else {
+            emptyList()
+          },
+        )
       }
     }
   ) { paddingValues ->
@@ -177,6 +201,7 @@ fun ConversationPage(
       messages = chat.msgs,
       selected = selected,
       selectionMode = selectionMode,
+      showMemory = showMemory,
       listState = listState,
       modifier = Modifier.padding(paddingValues),
       onLongPress = { msg ->
@@ -192,6 +217,10 @@ fun ConversationPage(
       onDeleteOne = { msg ->
         menuMsg = null
         pendingDelete = listOf(msg)
+      },
+      onRollbackOne = { msg ->
+        menuMsg = null
+        pendingRollback = msg
       },
       onMultiSelect = { msg ->
         menuMsg = null
@@ -223,6 +252,37 @@ fun ConversationPage(
       }
     )
   }
+
+  val confirmRollback = pendingRollback
+  if (confirmRollback != null) {
+    // 条数在弹窗里实时算:打开弹窗到点确认之间消息可能又变了(比如对方的回复刚到)
+    val index = chat.msgs.indexOfFirst { it === confirmRollback }
+    // count 是「从这条起到底」的总条数(含它自己),文案照这个说,不再写「以及它之后的 N 条」
+    val count = if (index < 0) 0 else chat.msgs.size - index
+    AlertDialog(
+      onDismissRequest = { pendingRollback = null },
+      title = { Text("回滚到这里") },
+      text = {
+        Text(
+          if (index < 0) "这条消息已经不在了。"
+          else "从这条起的 $count 条都会被删除,回到它之前的状态。删除后无法恢复。"
+        )
+      },
+      confirmButton = {
+        // 目标已不在时没什么可回滚的,只留一个关闭按钮
+        if (index >= 0) {
+          TextButton(onClick = {
+            viewModel.rollbackTo(context, chat, confirmRollback)
+            viewModel.clearSelection()
+            pendingRollback = null
+          }) { Text("回滚", color = AppTheme.colors.badge) }
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { pendingRollback = null }) { Text("取消") }
+      }
+    )
+  }
 }
 
 /**
@@ -244,6 +304,7 @@ private fun MessageList(
   messages: List<Msg>,
   selected: List<Msg>,
   selectionMode: Boolean,
+  showMemory: Boolean,
   listState: androidx.compose.foundation.lazy.LazyListState,
   modifier: Modifier = Modifier,
   onLongPress: (Msg) -> Unit,
@@ -252,6 +313,7 @@ private fun MessageList(
   onDismissMenu: () -> Unit,
   onCopyOne: (Msg) -> Unit,
   onDeleteOne: (Msg) -> Unit,
+  onRollbackOne: (Msg) -> Unit,
   onMultiSelect: (Msg) -> Unit,
 ) {
   LazyColumn(
@@ -268,6 +330,7 @@ private fun MessageList(
         msg = msg,
         selected = selected.any { it === msg },
         selectionMode = selectionMode,
+        showMemory = showMemory,
         showMenu = menuMsg === msg,
         modifier = Modifier.animateItemPlacement(ItemPlacementSpec),
         onLongPress = { onLongPress(msg) },
@@ -275,6 +338,7 @@ private fun MessageList(
         onDismissMenu = onDismissMenu,
         onCopy = { onCopyOne(msg) },
         onDelete = { onDeleteOne(msg) },
+        onRollback = { onRollbackOne(msg) },
         onMultiSelect = { onMultiSelect(msg) },
       )
     }
@@ -294,7 +358,59 @@ private fun MessageList(
   }
 }
 
-/** 顶栏上的文字按钮(多选时的复制/删除)。 */
+/**
+ * 多选状态的顶栏:返回 · 已选条数 · 全选/复制/删除。
+ *
+ * 不复用 [TitleBar]:那个把标题居中叠在 [Box] 上,而多选时右边有三个动作
+ * (全选 / 复制 / 删除),窄屏上居中的标题会被按钮压住。这里改成一行
+ * 「返回 · 标题(吃掉剩余宽度,放不下就省略) · 动作」,三者永不重叠。
+ */
+@Composable
+private fun SelectionTopBar(
+  count: Int,
+  allSelected: Boolean,
+  onBack: () -> Unit,
+  onToggleAll: () -> Unit,
+  onCopy: () -> Unit,
+  onDelete: () -> Unit,
+) {
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .background(AppTheme.colors.background)
+      .statusBarsPadding()
+      // heightIn 而不是 height:大字号下 15sp 文本不会被前后留白裁掉
+      .heightIn(min = 48.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Icon(
+      painterResource(R.drawable.ui_chevron_left),
+      contentDescription = "退出多选",
+      Modifier
+        .clickable(onClick = onBack)
+        .size(44.dp)
+        .padding(14.dp),
+      tint = AppTheme.colors.icon
+    )
+    Text(
+      "已选择 $count 条",
+      // 标题拿剩余宽度:按钮再多也只是把标题省略,不会互相盖住
+      Modifier
+        .weight(1f)
+        .padding(start = 2.dp, end = 4.dp),
+      fontSize = 15.sp,
+      fontWeight = FontWeight.Medium,
+      color = AppTheme.colors.textPrimary,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis
+    )
+    BarAction(if (allSelected) "取消全选" else "全选", AppTheme.colors.iconCurrent, onToggleAll)
+    BarAction("复制", AppTheme.colors.iconCurrent, onCopy)
+    BarAction("删除", AppTheme.colors.badge, onDelete)
+  }
+}
+
+/** 顶栏上的文字按钮(多选时的全选/复制/删除)。 */
 @Composable
 private fun RowScope.BarAction(text: String, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
   Text(
@@ -302,9 +418,10 @@ private fun RowScope.BarAction(text: String, color: androidx.compose.ui.graphics
     Modifier
       .clickable(onClick = onClick)
       .align(Alignment.CenterVertically)
-      .padding(horizontal = 12.dp, vertical = 12.dp),
+      .padding(horizontal = 10.dp, vertical = 12.dp),
     fontSize = 15.sp,
-    color = color
+    color = color,
+    maxLines = 1
   )
 }
 
@@ -355,20 +472,30 @@ data class AttachItem(val label: String, val icon: Int, val onClick: () -> Unit)
 fun ChatBottomBar(
   onSend: (String) -> Unit,
   attachItems: List<AttachItem> = emptyList(),
+  /**
+   * 外部托管的输入内容:非 null 时输入框由调用方持有(而不是自己 remember 一份)。
+   *
+   * 开发者控制台的「两步发送」需要它:第一次点发送后输入框被清空、内容进了报文编辑页,
+   * 用户在那里取消时要把原文放回输入框——这份文本不能跟着输入框的内部状态一起丢掉。
+   */
+  draft: String? = null,
+  onDraftChange: (String) -> Unit = {},
 ) {
-  var editingText by remember { mutableStateOf("") }
+  var internalText by remember { mutableStateOf("") }
+  val editingText = draft ?: internalText
+  val writeText: (String) -> Unit = { if (draft == null) internalText = it else onDraftChange(it) }
   var attachOpen by remember { mutableStateOf(false) }
   val canSend = editingText.isNotBlank()
   val send = {
     val text = editingText.trim()
     if (text.isNotEmpty()) {
       onSend(text)
-      editingText = ""
+      writeText("")
     }
   }
   TabBar(followsIme = true) {
     BasicTextField(
-      editingText, onValueChange = { editingText = it },
+      editingText, onValueChange = writeText,
       Modifier
         .weight(1f)
         .padding(4.dp, 8.dp)
@@ -497,6 +624,7 @@ fun MessageItem(
   msg: Msg,
   selected: Boolean = false,
   selectionMode: Boolean = false,
+  showMemory: Boolean = false,
   showMenu: Boolean = false,
   modifier: Modifier = Modifier,
   onLongPress: () -> Unit = {},
@@ -504,6 +632,7 @@ fun MessageItem(
   onDismissMenu: () -> Unit = {},
   onCopy: () -> Unit = {},
   onDelete: () -> Unit = {},
+  onRollback: () -> Unit = {},
   onMultiSelect: () -> Unit = {},
 ) {
   val mine = msg.from == User.Me
@@ -576,6 +705,18 @@ fun MessageItem(
             color = AppTheme.colors.textSecondary
           )
         }
+        // 开发者模式的「全部显示」:这一轮落盘时的记忆索引,只挂在 AI 回复那一侧。
+        // 条件里再判一次 DevMode:关掉开发者模式后,这些存储信息一定不会出现在普通界面上
+        if (!mine && showMemory && DevMode.enabled) {
+          msg.memory?.let { memory ->
+            Text(
+              memory.label(),
+              Modifier.padding(top = 4.dp),
+              fontSize = 10.sp,
+              color = AppTheme.colors.textSecondary
+            )
+          }
+        }
       }
       // 菜单锚定在这条气泡上,从它旁边长出来,而不是从屏幕底部弹出
       DropdownMenu(
@@ -585,6 +726,7 @@ fun MessageItem(
       ) {
         MenuRow("复制") { onCopy() }
         MenuRow("删除") { onDelete() }
+        MenuRow("回滚") { onRollback() }
         MenuRow("多选") { onMultiSelect() }
       }
     }

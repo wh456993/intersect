@@ -22,6 +22,8 @@ object DawnAssistant {
     avatar = R.drawable.ui_avatar_helper,
     signature = "intersect",
     roleplayMode = RoleplayMode.SELF_INSERT,
+    // 内置角色的号固定是 0,由 UidStore 定义,不会占用发给其它角色的号段
+    uid = UidStore.INTERSECT_UID,
   )
 
   /** 内置角色不允许删除:界面上隐藏入口,业务层也会拦住。 */

@@ -18,4 +18,19 @@ object TimeManager {
   /** 本地当前日期时间,精确到分钟,如 "2025-01-15 14:05"。 */
   fun nowDateTime(): String =
     SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+
+  /**
+   * 把秒级时间戳按本地时区格式化成 "yyyy-MM-dd HH:mm:ss"。
+   *
+   * 记忆索引里存的是 epoch 秒(不存格式化后的字符串):换语言、换时区都还能正确显示。
+   */
+  fun formatSecond(epochSecond: Long): String =
+    SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date(epochSecond * 1000L))
+
+  /** 同上,精确到分钟 —— 即时记忆总结的生成时间用它。 */
+  fun formatMinute(epochSecond: Long): String =
+    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(epochSecond * 1000L))
+
+  /** 本地此刻的秒级时间戳(epoch second):总结的生成时间用这个口径存。 */
+  fun nowSecond(): Long = System.currentTimeMillis() / 1000L
 }

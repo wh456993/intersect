@@ -60,6 +60,8 @@ internal fun userToJson(user: User): JSONObject = JSONObject().apply {
   user.role?.let { put("role", it) }
   user.personality?.let { put("personality", it) }
   put("roleplayMode", user.roleplayMode.name)
+  // 唯一 ID 跟着角色一起存:备份([BackupFormat])复用这一段,所以恢复 / 换机都不会换号
+  user.uid?.let { put("uid", it) }
 }
 
 /** 从 JSON 还原用户;缺少 id 时返回 null。 */
@@ -80,5 +82,8 @@ internal fun userFromJson(obj: JSONObject): User? {
     personality = obj.optString("personality").takeIf { it.isNotEmpty() },
     roleplayMode = if (modeField.isEmpty() && builtIn != null) builtIn.roleplayMode
       else RoleplayMode.fromName(modeField),
+    // 老数据还没有这一项:留 null,由 MainViewModel 读入时补号;内置角色永远是 0
+    uid = builtIn?.uid
+      ?: if (obj.has("uid")) obj.optLong("uid", 0L).takeIf { it > 0L } else null,
   )
 }

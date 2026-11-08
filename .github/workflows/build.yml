@@ -3,10 +3,13 @@ name: Build
 on:
   push:
     branches: [ main ]
+    # 推 v* 标签会走同一条流水线,并在最后把正式签名 APK 发到 GitHub 发行版(Releases)。
+    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
+# 默认只读;只有 release job 需要写权限(创建发行版、上传 APK),在 job 内单独声明。
 permissions:
   contents: read
 
@@ -17,6 +20,8 @@ concurrency:
 jobs:
   build:
     name: 构建 Debug APK
+    # 打 tag 发版时只跑下面的正式版 job,不必再编一遍 debug 包(省 Actions 分钟数)
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -94,6 +99,9 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # 发布发行版要写仓库内容(GITHUB_TOKEN 默认只读)
+    permissions:
+      contents: write
 
     steps:
       - name: 检出代码
@@ -211,6 +219,30 @@ jobs:
           path: app/build/outputs/apk/release/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      # 打 tag(v*)推送时,把上面校验过签名的 APK 挂到 GitHub 发行版。
+      # 用 runner 预装的 gh CLI,不引第三方 action;凭据用自动注入的 GITHUB_TOKEN。
+      # 注意必须在「校验正式签名」之后:没通过校验就不该有发行版。
+      - name: 发布到 GitHub 发行版
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          TAG="$GITHUB_REF_NAME"
+          echo "发行版 tag = $TAG, APK = $APK"
+          # 同一 tag 重复推送(或重跑)时发行版已存在,改成覆盖上传,避免直接报错退出
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "发行版 $TAG 已存在,覆盖上传 APK"
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --title "Intersect $TAG" \
+              --generate-notes \
+              --verify-tag
+          fi
+          gh release view "$TAG" --json url,name,assets --jq '.url, .name, (.assets[] | "\(.name)  \(.size) 字节")'
 
       # 密钥文件不留到 job 结束
       - name: 清理还原的密钥
