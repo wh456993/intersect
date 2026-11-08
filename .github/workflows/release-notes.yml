@@ -1,0 +1,82 @@
+name: Release Notes
+
+# 用 CHANGELOG.md 里对应版本的段落,更新已发布发行版(Release)的说明文字。
+#
+# 什么时候用:
+#   - 发行版是之前发布的、说明还只是自动生成的变更列表(比如 v1.1 首次发布时);
+#   - 事后补写/改了 CHANGELOG.md,想让发行版页面跟着更新。
+# 打 tag 发新版的自动流程在 Build 流水线里,不需要手动跑这个。
+#
+# 用法:Actions → Release Notes → Run workflow。不填 tag 就更新「最新一次发行版」。
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要更新说明的标签(如 v1.1);留空 = 最新一次发行版'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-notes-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: 更新发行版说明
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v7
+
+      - name: 解析目标 tag
+        id: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [ -n "$INPUT_TAG" ]; then
+            TAG="$INPUT_TAG"
+          else
+            # 取最近发布的发行版(不是草稿),没有发行版就直接失败
+            TAG=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName')
+          fi
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "::error::没能确定要更新的 tag,请在输入框里显式填写(如 v1.1)"
+            exit 1
+          fi
+          echo "目标 tag = $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: 从 CHANGELOG.md 抽出该版本的说明
+        id: notes
+        env:
+          TAG: ${{ steps.target.outputs.tag }}
+        run: |
+          set -euo pipefail
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          # 抽不出来就直接失败:这个流水线唯一的作用就是把说明写对,静默跳过没有意义
+          bash .github/scripts/release-notes.sh "$TAG" "$NOTES"
+          echo "说明共 $(wc -l < "$NOTES") 行"
+          echo "notes=$NOTES" >> "$GITHUB_OUTPUT"
+
+      - name: 写回发行版
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.target.outputs.tag }}
+          NOTES: ${{ steps.notes.outputs.notes }}
+        run: |
+          set -euo pipefail
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            echo "::error::发行版 $TAG 不存在。要发新版本请打 tag 并推送到仓库,由 Build 流水线发布"
+            exit 1
+          fi
+          # 只改说明,不动标题与附件(APK 已在发行版里,重传没有必要)
+          gh release edit "$TAG" --notes-file "$NOTES"
+          gh release view "$TAG" --json url,name,body --jq '.url, .name'

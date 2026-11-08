@@ -39,4 +39,5 @@
 - 结构版本号升到 **1.1**(versionCode 2)。
 - 测试版现在用独立包名(`com.reimei.intersect.beta`),桌面显示为「intersect beta」,
   可以和正式版同时安装、数据互不影响。
-- 发版自动化:给仓库打 `v*` 标签后,云编译会自动构建正式签名 APK 并发布到 GitHub 发行版(Releases)。
+- 发版自动化:给仓库打 `v*` 标签后,云编译会自动构建正式签名 APK 并发布到 GitHub 发行版(Releases),
+  发行版说明直接取自本文件的对应版本段落。

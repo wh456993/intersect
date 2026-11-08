@@ -220,6 +220,20 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      # 发行的说明文字直接取 CHANGELOG.md 里该 tag 的段落,不在两个地方各写一份。
+      # 抽不出来(比如忘了写 CHANGELOG)时退到 gh 自动生成的变更列表,不让发版卡住。
+      - name: 生成发行版说明
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="$GITHUB_REF_NAME"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          if bash .github/scripts/release-notes.sh "$TAG" "$NOTES"; then
+            echo "使用 CHANGELOG.md 里 $TAG 的段落($(wc -l < "$NOTES") 行)"
+          else
+            echo "::warning::CHANGELOG.md 里没找到 $TAG 的段落,改用自动生成的变更列表"
+            rm -f "$NOTES"
+          fi
+
       # 打 tag(v*)推送时,把上面校验过签名的 APK 挂到 GitHub 发行版。
       # 用 runner 预装的 gh CLI,不引第三方 action;凭据用自动注入的 GITHUB_TOKEN。
       # 注意必须在「校验正式签名」之后:没通过校验就不该有发行版。
@@ -231,11 +245,22 @@ jobs:
           set -euo pipefail
           APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
           TAG="$GITHUB_REF_NAME"
+          NOTES="$RUNNER_TEMP/release-notes.md"
           echo "发行版 tag = $TAG, APK = $APK"
           # 同一 tag 重复推送(或重跑)时发行版已存在,改成覆盖上传,避免直接报错退出
           if gh release view "$TAG" > /dev/null 2>&1; then
-            echo "发行版 $TAG 已存在,覆盖上传 APK"
+            echo "发行版 $TAG 已存在,覆盖上传 APK 并更新说明"
+            if [ -s "$NOTES" ]; then
+              gh release edit "$TAG" --title "Intersect $TAG" --notes-file "$NOTES"
+            else
+              gh release edit "$TAG" --title "Intersect $TAG" --generate-notes
+            fi
             gh release upload "$TAG" "$APK" --clobber
+          elif [ -s "$NOTES" ]; then
+            gh release create "$TAG" "$APK" \
+              --title "Intersect $TAG" \
+              --notes-file "$NOTES" \
+              --verify-tag
           else
             gh release create "$TAG" "$APK" \
               --title "Intersect $TAG" \
