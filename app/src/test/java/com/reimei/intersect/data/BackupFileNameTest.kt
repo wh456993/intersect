@@ -72,9 +72,16 @@ class BackupFileNameTest {
     val long = "a" + "😀".repeat(30)
     val subject = name(BackupSection.Chats, long).substringBefore("-聊天记录-")
     assertTrue("截断后不该超长:${subject.length}", subject.length <= 40)
-    // 结尾不能是孤立的高位代理,否则文件管理器里显示成方块
-    assertFalse("结尾是孤立高位代理", subject.last().isHighSurrogate())
-    assertFalse("结尾是孤立低位代理", subject.last().isLowSurrogate())
+    // 不能切出半个字符:完整 emoji 的结尾本来就是低位代理(合法),
+    // 要挡的是孤立代理 —— 结尾是高位代理就是半个,是低位代理则必须紧跟自己的高位伙伴
+    val last = subject.last()
+    assertFalse("结尾是孤立高位代理", last.isHighSurrogate())
+    if (last.isLowSurrogate()) {
+      assertTrue(
+        "结尾的低位代理必须与前面的高位代理配对",
+        subject.length >= 2 && subject[subject.length - 2].isHighSurrogate(),
+      )
+    }
   }
 
   @Test

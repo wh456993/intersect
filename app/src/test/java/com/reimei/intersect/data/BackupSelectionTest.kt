@@ -37,6 +37,7 @@ class BackupSelectionTest {
 
   @Test
   fun `保持原有顺序`() {
-    assertEquals(listOf("c", "a"), filterSelectedBy(all, setOf("c", "a")) { it })
+    // 结果顺序跟的是原列表(而 Selection 的迭代顺序 —— 它是 Set,顺序不可依赖)
+    assertEquals(listOf("a", "c"), filterSelectedBy(all, setOf("c", "a")) { it })
   }
 }
