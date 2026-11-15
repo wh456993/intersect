@@ -21,8 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.reimei.intersect.R
 import com.reimei.intersect.i18n.Text
 import com.reimei.intersect.ui.theme.AppTheme
 
@@ -102,6 +104,35 @@ internal fun ChoiceRow(
       // 未选中时也占同样宽度,避免选中前后文字左右跳动
       Spacer(Modifier.size(20.dp))
     }
+  }
+}
+
+/**
+ * 入口式选项行:右边是箭头,不是勾。
+ *
+ * 用在「点了就进另一个页面」的场合 —— 比如创建角色页的两个扮演模式:它们是两套彼此独立的界面,
+ * 没有「当前选中哪个」这回事,打勾反而让人以为要先在这里选好、再点右上角完成。
+ */
+@Composable
+internal fun ChoiceEntryRow(
+  title: String,
+  onClick: () -> Unit
+) {
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .clickable(onClick = onClick)
+      .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 14.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(title, Modifier.weight(1f), fontSize = 16.sp, color = AppTheme.colors.textPrimary)
+    Spacer(Modifier.width(12.dp))
+    Icon(
+      painterResource(R.drawable.ui_chevron_right),
+      contentDescription = null,
+      Modifier.size(14.dp),
+      tint = AppTheme.colors.more
+    )
   }
 }
 

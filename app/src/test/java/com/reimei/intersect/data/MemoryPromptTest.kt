@@ -20,14 +20,14 @@ class MemoryPromptTest {
       targetTokens = 400,
       template = "长度控制在 {min}~{target} token 之间。",
     )
-    // 下限是目标的 70%
-    assertEquals("长度控制在 280~400 token 之间。", prompt)
+    // 下限是固定的 250 token(滑块调的是上限)
+    assertEquals("长度控制在 250~400 token 之间。", prompt)
   }
 
   @Test
   fun `内置模板替换后不再含占位符`() {
     val prompt = MemorySummarizer.systemPrompt(ImmediateMemoryState.TARGET_DEFAULT)
-    assertTrue(prompt.contains("280~400"))
+    assertTrue(prompt.contains("250~400"))
     assertTrue(!prompt.contains(MemorySummarizer.TARGET_SLOT))
     assertTrue(!prompt.contains(MemorySummarizer.MIN_SLOT))
   }
@@ -49,7 +49,7 @@ class MemoryPromptTest {
   @Test
   fun `自定义模板里的占位符同样会被替换`() {
     val prompt = MemorySummarizer.systemPrompt(600, "我的规则:不超过 {target} token,至少 {min}。")
-    assertEquals("我的规则:不超过 600 token,至少 420。", prompt)
+    assertEquals("我的规则:不超过 600 token,至少 250。", prompt)
   }
 
   // ---- 三态:实际生效的到底是不是自定义模板 ----

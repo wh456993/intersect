@@ -61,8 +61,8 @@ class UsageQueriesTest {
 
   @Test
   fun 按密钥组与模型分组聚合() {
-    insertLog(base, "key_1", "deepseek-chat", "friend_a", prompt = 1000, cached = 400, completion = 500, cost = 0.5)
-    insertLog(base, "key_1", "deepseek-chat", "friend_b", prompt = 200, cached = 0, completion = 100, cost = 0.2)
+    insertLog(base, "key_1", "deepseek-flash", "friend_a", prompt = 1000, cached = 400, completion = 500, cost = 0.5)
+    insertLog(base, "key_1", "deepseek-flash", "friend_b", prompt = 200, cached = 0, completion = 100, cost = 0.2)
     insertLog(base, "key_2", "qwen-max", "friend_a", prompt = 300, cached = 100, completion = 200, cost = 0.9)
 
     val snapshot = UsageQueries.load(context, UsageFilter())
@@ -74,7 +74,7 @@ class UsageQueriesTest {
     assertEquals(1800L, key1.tokens) // (1000+500) + (200+100)
     assertEquals(0.7, key1.cost, 1e-9)
 
-    val chat = snapshot.byModel.first { it.key == "deepseek-chat" }
+    val chat = snapshot.byModel.first { it.key == "deepseek-flash" }
     assertEquals(1800L, chat.tokens)
 
     // Token 构成:缓存 500、未缓存 1000-400 + 200-0 + 300-100 = 1000、输出 800
@@ -86,7 +86,7 @@ class UsageQueriesTest {
 
   @Test
   fun 筛选条件会作用到所有聚合() {
-    insertLog(base, "key_1", "deepseek-chat", "friend_a", prompt = 1000, cached = 0, completion = 0, cost = 0.5)
+    insertLog(base, "key_1", "deepseek-flash", "friend_a", prompt = 1000, cached = 0, completion = 0, cost = 0.5)
     insertLog(base, "key_2", "qwen-max", "friend_a", prompt = 300, cached = 0, completion = 0, cost = 0.9)
 
     val filtered = UsageQueries.load(context, UsageFilter(UsageDimension.KeyGroup, "key_2"))
@@ -102,8 +102,8 @@ class UsageQueriesTest {
 
   @Test
   fun 按天聚合趋势并升序排列() {
-    insertLog(base, "key_1", "deepseek-chat", "friend_a", prompt = 100, cached = 0, completion = 0, cost = 0.1)
-    insertLog(base + dayMs, "key_1", "deepseek-chat", "friend_a", prompt = 200, cached = 0, completion = 0, cost = 0.2)
+    insertLog(base, "key_1", "deepseek-flash", "friend_a", prompt = 100, cached = 0, completion = 0, cost = 0.1)
+    insertLog(base + dayMs, "key_1", "deepseek-flash", "friend_a", prompt = 200, cached = 0, completion = 0, cost = 0.2)
 
     val trend = UsageQueries.load(context, UsageFilter()).trend
     assertEquals(2, trend.size)
@@ -129,10 +129,10 @@ class UsageQueriesTest {
 
   @Test
   fun 改单价后重算历史费用() {
-    insertLog(base, "key_1", "deepseek-chat", "friend_a", prompt = 1_000_000, cached = 0, completion = 0, cost = 1.0)
+    insertLog(base, "key_1", "deepseek-flash", "friend_a", prompt = 1_000_000, cached = 0, completion = 0, cost = 1.0)
 
-    // 把 deepseek-chat 的输入价改成 3 元/百万 token,重算后 1M 输入 = 3 元
-    PriceConfigStore.save(context, PriceConfig().withPrice("deepseek-chat", ModelPrice(3.0, 0.5, 8.0)))
+    // 把 deepseek-flash 的输入价改成 3 元/百万 token,重算后 1M 输入 = 3 元
+    PriceConfigStore.save(context, PriceConfig().withPrice("deepseek-flash", ModelPrice(3.0, 0.5, 8.0)))
     assertEquals(1, PriceConfigStore.recompute(context))
 
     val cost = UsageQueries.load(context, UsageFilter()).cost
@@ -141,7 +141,7 @@ class UsageQueriesTest {
 
   @Test
   fun 没有用量时不留流水() {
-    UsageLog.record(context, keyGroupId = "key_1", model = "deepseek-chat", chatWindowId = "w", usage = null)
+    UsageLog.record(context, keyGroupId = "key_1", model = "deepseek-flash", chatWindowId = "w", usage = null)
     assertEquals(0L, UsageQueries.load(context, UsageFilter()).requests)
   }
 }

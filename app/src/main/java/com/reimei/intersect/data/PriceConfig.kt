@@ -36,8 +36,8 @@ object Pricing {
    */
   val DEFAULT_PRICES: Map<String, ModelPrice> = mapOf(
     // DeepSeek:输入(未命中)/ 输入(命中)/ 输出
-    "deepseek-chat" to ModelPrice(2.0, 0.5, 8.0),
-    "deepseek-reasoner" to ModelPrice(4.0, 1.0, 16.0),
+    "deepseek-flash" to ModelPrice(2.0, 0.5, 8.0),
+    "deepseek-v4-pro" to ModelPrice(4.0, 1.0, 16.0),
     // 千问:没有单独的缓存命中价,命中与未命中同价
     "qwen-max" to ModelPrice(2.4, 2.4, 9.6),
     "qwen-plus" to ModelPrice(0.8, 0.8, 2.0),
@@ -92,7 +92,11 @@ data class PriceConfig(
 ) {
   fun priceOf(model: String): ModelPrice {
     val name = model.trim()
-    return overrides[name] ?: Pricing.DEFAULT_PRICES[name] ?: Pricing.UNKNOWN_PRICE
+    // 老模型名的流水(改名之前记下的)也按新名字的单价算,不至于全变成 0 元
+    return overrides[name]
+      ?: Pricing.DEFAULT_PRICES[name]
+      ?: Pricing.DEFAULT_PRICES[ModelNames.normalize(name)]
+      ?: Pricing.UNKNOWN_PRICE
   }
 
   fun withPrice(model: String, price: ModelPrice): PriceConfig =

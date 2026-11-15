@@ -2,7 +2,6 @@ package com.reimei.intersect.data
 
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import android.provider.OpenableColumns
 import java.io.File
 import java.text.SimpleDateFormat
@@ -12,22 +11,25 @@ import java.util.Locale
 /**
  * 备份文件的读写。
  *
- * 备份必须落在用户自己挑的位置:导出走系统的「保存到」选择器,恢复走「打开文件」选择器。
+ * 备份必须落在用户自己挑的位置:导出走系统的「保存到」选择器,导入走「打开文件」选择器。
  * 之前是靠猜目录(用户主目录 → 应用外部目录 → 应用私有目录)硬写,一旦没拿到全部文件权限
  * 就会静默退回到应用私有目录,卸载应用时备份跟着一起没了 —— 所以写入只保留 SAF 这一条路。
  *
- * [legacyDirs] 只用于「扫描旧版本留下的备份」:那些文件还在,得让用户能找回来。
+ * 备份是**明文 JSON**(`.json`),不再有 `.ibk` 那种加密容器:文件名里带上内容的类别,
+ * 用户在自己的文件管理器里一眼就能看出哪份是什么、也能直接用文本编辑器打开。
  */
 object BackupFiles {
-  const val DIR_NAME = "intersect-backup"
-  const val EXTENSION = ".ibk"
+  const val EXTENSION = ".json"
 
-  /** .ibk 没有注册过的 MIME,交给选择器按二进制存。 */
-  const val MIME_TYPE = "application/octet-stream"
+  /** 导出的是纯文本 JSON:给选择器一个真实存在的 MIME,文件管理器里才会正常关联。 */
+  const val MIME_TYPE = "application/json"
 
-  fun fileName(): String {
-    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date())
-    return "intersect-backup-$stamp$EXTENSION"
+  /** 「打开文件」选择器的过滤条件:各家文件管理器给 .json 报的 MIME 不完全一致,都给上。 */
+  val PICKER_TYPES = arrayOf("application/json", "text/plain", "application/octet-stream")
+
+  fun fileName(section: BackupSection, nowMs: Long = System.currentTimeMillis()): String {
+    val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(nowMs))
+    return "intersect-${section.fileTag}-$stamp$EXTENSION"
   }
 
   // ------------------------------------------------------------ 选择器给的 Uri
@@ -41,7 +43,6 @@ object BackupFiles {
    * @throws IllegalStateException 选的位置打不开、写不进去或写完仍为空
    */
   fun write(context: Context, uri: Uri, content: String) {
-    val resolver = context.contentResolver
     val stream = openForWrite(context, uri) ?: error("无法写入所选位置")
     stream.bufferedWriter(Charsets.UTF_8).use { it.write(content) }
 
@@ -115,34 +116,11 @@ object BackupFiles {
     parentFile?.mkdirs()
     writeText(content, Charsets.UTF_8)
   }
-
-  /** 旧版本硬写过的那几个目录里还剩的备份,按修改时间从新到旧。 */
-  fun list(context: Context): List<File> {
-    val seen = mutableMapOf<String, File>()
-    legacyDirs(context).forEach { dir ->
-      dir.listFiles().orEmpty().forEach { file ->
-        if (file.isFile && file.name.endsWith(EXTENSION) && file.length() > 0L) {
-          seen.putIfAbsent(file.absolutePath, file)
-        }
-      }
-    }
-    return seen.values.sortedByDescending { it.lastModified() }
-  }
-
-  private fun legacyDirs(context: Context): List<File> {
-    val dirs = mutableListOf<File>()
-    @Suppress("DEPRECATION")
-    val shared = Environment.getExternalStorageDirectory()
-    if (shared != null) dirs.add(File(shared, DIR_NAME))
-    context.getExternalFilesDir(null)?.let { dirs.add(File(it, DIR_NAME)) }
-    dirs.add(File(context.filesDir, DIR_NAME))
-    return dirs
-  }
 }
 
 /**
- * 一份备份文件的内容入口:本机扫描到的 File 与选择器给的 Uri 都先读成文本,
- * 解析、解密、写回共用同一套逻辑。文本只读一次,预览与恢复复用同一份。
+ * 一份备份文件的内容入口:选择器给的 Uri 先读成文本,
+ * 解析、写回共用同一套逻辑。文本只读一次,预览与恢复复用同一份。
  */
 class BackupDocument(
   val name: String,

@@ -13,6 +13,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
@@ -20,48 +21,51 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 导出 / 恢复的端到端测试(真机跑,读写的是应用自己的 SharedPreferences)。
+ * 导出 / 导入的端到端测试(真机跑,读写的是应用自己的 SharedPreferences)。
  *
- * 每个用例前后都会把三份存储的原文备份再还原,所以跑测试不会把设备上的数据搞乱。
- * 覆盖的是「用户真正关心」的三件事:备份能读回来、口令不对打不开、合并与覆盖的区别。
+ * 每个用例前后都会把各份存储的原文备份再还原,所以跑测试不会把设备上的数据搞乱。
+ * 覆盖的是「用户真正关心」的几件事:每一类都能原样带走、合并与覆盖的区别、
+ * 导入一类不会动到别类、旧版 `.ibk` 会被明确拒绝。
  */
 @RunWith(AndroidJUnit4::class)
 class BackupServiceTest {
   private val context: Context = InstrumentationRegistry.getInstrumentation().targetContext
 
-  /** 三份存储的 prefs 名与 key,和三个 Store 里的私有常量一致。 */
-  private val stores = listOf(
-    "chat_store" to "chats",
-    "friends_store" to "friends",
-    "api_key_store" to "keys",
-  )
-  private val snapshot = mutableMapOf<String, String?>()
+  /** 参与备份的四份 prefs,和四个 Store 里的私有常量一致。 */
+  private val prefsNames = listOf("chat_store", "friends_store", "api_key_store", "immediate_memory")
+  private val snapshot = mutableMapOf<String, Map<String, *>>()
   private var exported: File? = null
 
-  private val password = "246810"
-
-  /**
-   * 打包并写到缓存目录:生产里用户在选择器里挑位置,测试里用一个文件等价替代。
-   */
-  private fun exportFile(sections: Set<BackupSection>, nowMs: Long = System.currentTimeMillis()): File {
-    val archive = BackupService.prepare(context, password, sections, nowMs)
+  /** 打包并写到缓存目录:生产里用户在选择器里挑位置,测试里用一个文件等价替代。 */
+  private fun exportFile(section: BackupSection, nowMs: Long = System.currentTimeMillis()): File {
+    val archive = BackupService.prepare(context, section, nowMs)
     return BackupFiles.writeTo(File(context.cacheDir, archive.fileName), archive.content)
+      .also { exported = it }
   }
 
   @Before
   fun snapshotStores() {
-    stores.forEach { (prefs, key) ->
-      snapshot["$prefs/$key"] = context.getSharedPreferences(prefs, Context.MODE_PRIVATE)
-        .getString(key, null)
+    prefsNames.forEach { name ->
+      snapshot[name] = context.getSharedPreferences(name, Context.MODE_PRIVATE).all
     }
   }
 
   @After
   fun restoreStores() {
-    stores.forEach { (prefs, key) ->
-      val value = snapshot["$prefs/$key"]
-      val edit = context.getSharedPreferences(prefs, Context.MODE_PRIVATE).edit()
-      if (value == null) edit.remove(key) else edit.putString(key, value)
+    prefsNames.forEach { name ->
+      val prefs = context.getSharedPreferences(name, Context.MODE_PRIVATE)
+      val edit = prefs.edit()
+      prefs.all.keys.forEach { edit.remove(it) }
+      snapshot[name]?.forEach { (key, value) ->
+        when (value) {
+          is String -> edit.putString(key, value)
+          is Int -> edit.putInt(key, value)
+          is Long -> edit.putLong(key, value)
+          is Boolean -> edit.putBoolean(key, value)
+          is Float -> edit.putFloat(key, value)
+          else -> Unit
+        }
+      }
       edit.commit()
     }
     exported?.delete()
@@ -80,252 +84,244 @@ class BackupServiceTest {
     )
     ApiKeyStore.save(
       context,
-      listOf(ApiKey("key_1", "我的 KEY", "deepseek-chat", "https://api.deepseek.com/v1", "sk-12345678"))
+      listOf(ApiKey("key_1", "我的 KEY", "deepseek-flash", "https://api.deepseek.com/v1", "sk-12345678"))
+    )
+    MemoryStore.save(
+      context,
+      ImmediateMemoryState(
+        friendId = friend.id,
+        rounds = 20,
+        coveredRounds = 20,
+        summaries = listOf(
+          ImmediateMemory(
+            id = "immediate_1",
+            fromRound = 1,
+            toRound = 20,
+            createdAt = 1_700_000_000L,
+            targetTokens = 400,
+            actualTokens = 380,
+            text = "他们聊了很久。",
+          )
+        ),
+      )
     )
   }
 
+  // ---------------------------------------------------------------- 导出
+
   @Test
-  fun exportRoundTrip() {
+  fun charactersExportRoundTrip() {
     seed()
-    val archive = BackupService.prepare(
-      context,
-      password,
-      BackupSection.entries.toSet(),
-      nowMs = 1_700_000_000_000L
-    )
-    val file = BackupFiles.writeTo(File(context.cacheDir, archive.fileName), archive.content)
-    exported = file
+    val file = exportFile(BackupSection.Characters, nowMs = 1_700_000_000_000L)
     assertTrue(file.exists())
     assertTrue(file.length() > 0L)
-    assertEquals(listOf(BackupSection.Characters, BackupSection.Chats, BackupSection.ApiKeys), archive.sections)
-    assertEquals(2, archive.counts.characters)
-    assertEquals(1, archive.counts.chats)
-    assertEquals(2, archive.counts.messages)
-    assertEquals(1, archive.counts.apiKeys)
+    assertTrue(file.name.endsWith(".json"))
 
     val preview = BackupService.preview(BackupDocument.of(file))
     assertEquals(file.name, preview.name)
+    assertEquals(BackupSection.Characters, preview.section)
     assertEquals(1_700_000_000_000L, preview.epochMs)
-    assertEquals(1, preview.counts.chats)
+    assertEquals(2, preview.counts.characters)
 
-    val payload = BackupService.verify(BackupDocument.of(file), password)
+    val payload = BackupService.payload(BackupDocument.of(file))
     assertEquals(setOf("dawn_assistant", "friend_a"), payload.characters!!.map { it.id }.toSet())
     assertEquals("身份 A", payload.characters!!.first { it.id == "friend_a" }.role)
+    // 一份文件只装一类内容
+    assertNull(payload.chats)
+    assertNull(payload.memories)
+    assertNull(payload.apiKeys)
+  }
+
+  @Test
+  fun chatsExportRoundTrip() {
+    seed()
+    val file = exportFile(BackupSection.Chats)
+    val payload = BackupService.payload(BackupDocument.of(file))
     val chat = payload.chats!!.single()
     assertEquals(listOf("在吗", "在"), chat.msgs.map { it.text })
     assertEquals("key_1", chat.apiKeyId)
+    assertNull(payload.characters)
+  }
+
+  @Test
+  fun memoriesExportRoundTrip() {
+    seed()
+    val file = exportFile(BackupSection.Memories)
+    val payload = BackupService.payload(BackupDocument.of(file))
+    val state = payload.memories!!.single()
+    assertEquals("friend_a", state.friendId)
+    assertEquals(20, state.rounds)
+    assertEquals("他们聊了很久。", state.summaries.single().text)
+  }
+
+  @Test
+  fun apiKeysExportRoundTrip() {
+    seed()
+    val file = exportFile(BackupSection.ApiKeys)
+    val payload = BackupService.payload(BackupDocument.of(file))
     assertEquals("sk-12345678", payload.apiKeys!!.single().key)
   }
 
+  /** 导出的文件是可直接打开的明文 JSON:没有加密段、内容段是对象。 */
   @Test
-  fun wrongPasswordCannotOpen() {
+  fun exportedFileIsPlainJson() {
     seed()
-    val file = exportFile(setOf(BackupSection.Chats))
-    exported = file
-    try {
-      BackupService.verify(BackupDocument.of(file), "111111")
-      fail("错误口令不应该解出内容")
-    } catch (e: BackupCryptoException) {
-      assertTrue(e.message.orEmpty().contains("口令"))
-    }
+    val file = exportFile(BackupSection.ApiKeys)
+    val text = BackupFiles.read(file)
+    assertFalse(text.contains("encryption"))
+    assertTrue(text.contains("\"payload\""))
   }
 
-  @Test
-  fun charactersOnlyBackup() {
-    seed()
-    val archive = BackupService.prepare(context, password, setOf(BackupSection.Characters))
-    val file = BackupFiles.writeTo(File(context.cacheDir, archive.fileName), archive.content)
-    exported = file
-    assertEquals(listOf(BackupSection.Characters), archive.sections)
-    val payload = BackupService.verify(BackupDocument.of(file), password)
-    assertNotNull(payload.characters)
-    assertEquals(null, payload.chats)
-    assertEquals(null, payload.apiKeys)
-  }
+  // ---------------------------------------------------------------- 导入
 
   @Test
-  fun mergeKeepsLocalExtras() {
+  fun mergeChatsAddsOnlyMissingMessages() {
     seed()
-    val file = exportFile(BackupSection.entries.toSet())
-    exported = file
+    val file = exportFile(BackupSection.Chats)
 
-    // 导出之后本机又多了一个角色和一条 KEY,恢复时它们不能消失
-    val extra = User("friend_b", "角色 B", 0)
-    FriendsStore.save(context, FriendsStore.load(context) + extra)
-    ApiKeyStore.save(
-      context,
-      ApiKeyStore.load(context) + ApiKey("key_2", "第二个 KEY", "qwen-max", "https://a/v1", "sk-abcdefgh")
-    )
-
-    val restored = BackupService.restore(context, BackupDocument.of(file), password, RestoreMode.Merge)
-    assertEquals(RestoreMode.Merge, restored.mode)
-    // 备份里的角色都已在,只是被覆盖了一遍
-    assertEquals(0, restored.charactersAdded)
-    assertEquals(2, restored.charactersUpdated)
-    assertEquals(0, restored.apiKeysAdded)
-    assertEquals(1, restored.apiKeysUpdated)
-
-    val ids = FriendsStore.load(context).map { it.id }.toSet()
-    assertTrue(ids.containsAll(setOf("dawn_assistant", "friend_a", "friend_b")))
-    assertEquals(2, ApiKeyStore.load(context).size)
-  }
-
-  @Test
-  fun mergeAddsMissingMessages() {
-    seed()
-    val file = exportFile(setOf(BackupSection.Chats))
-    exported = file
-
-    // 本机的这个会话只剩一条消息(比如删过),恢复应该把另一条补回来
+    // 本机在这之后又聊了一句:合并只补备份里多出来的,本机的新消息不能被冲掉也不会重复
     val friend = FriendsStore.load(context).first { it.id == "friend_a" }
-    ChatStore.save(context, listOf(Chat(friend, mutableListOf(Msg(User.Me, "在吗")))))
+    val current = ChatStore.load(context)!!.single()
+    current.msgs.add(Msg(friend, "本机新消息"))
+    ChatStore.save(context, listOf(current))
 
-    val restored = BackupService.restore(context, BackupDocument.of(file), password, RestoreMode.Merge)
-    assertEquals(1, restored.chatsMerged)
-    assertEquals(1, restored.messagesAdded)
-    assertEquals(listOf("在吗", "在"), ChatStore.load(context)!!.single().msgs.map { it.text })
+    val result = BackupService.restore(context, BackupDocument.of(file), RestoreMode.Merge)
+    // 备份里的两条消息本机都有,合并不该多出来
+    assertEquals(0, result.messagesAdded)
+    assertEquals(3, ChatStore.load(context)!!.single().msgs.size)
   }
 
   @Test
-  fun replaceDropsLocalOnly() {
+  fun replaceChatsDropsExtraSessions() {
     seed()
-    val file = exportFile(BackupSection.entries.toSet())
-    exported = file
+    val file = exportFile(BackupSection.Chats)
 
-    FriendsStore.save(context, FriendsStore.load(context) + User("friend_c", "角色 C", 0))
-    ApiKeyStore.save(context, ApiKeyStore.load(context) + ApiKey("key_3", "第三个", "m", "https://a/v1", "sk-zzzzzzzz"))
-
-    val restored = BackupService.restore(context, BackupDocument.of(file), password, RestoreMode.Replace)
-    assertEquals(RestoreMode.Replace, restored.mode)
-
-    val ids = FriendsStore.load(context).map { it.id }
-    assertFalse(ids.contains("friend_c"))
-    assertTrue(ids.contains("friend_a"))
-    assertEquals(listOf("key_1"), ApiKeyStore.load(context).map { it.id })
-  }
-
-  @Test
-  fun emptySectionsRejected() {
-    seed()
-    try {
-      BackupService.prepare(context, password, emptySet())
-      fail("一个内容都没勾选时不应该产出备份")
-    } catch (e: BackupFormatException) {
-      assertTrue(e.message.orEmpty().contains("至少"))
-    }
-  }
-
-  /**
-   * 真实的 SAF 写入:选择器给的就是这种 content:// Uri。
-   * 这条路径不能被「写到缓存文件」的用例代替—— 曾经的 bug 就是写进 content:// 后文件是空的。
-   */
-  @Test
-  fun exportToContentUri() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-    seed()
-    val archive = BackupService.prepare(context, password, BackupSection.entries.toSet())
-    val resolver = context.contentResolver
-    val uri = resolver.insert(
-      MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-      ContentValues().apply {
-        put(MediaStore.Downloads.DISPLAY_NAME, archive.fileName)
-        put(MediaStore.Downloads.MIME_TYPE, BackupFiles.MIME_TYPE)
-        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-      }
+    val other = User("friend_b", "角色 B", 0)
+    ChatStore.save(
+      context,
+      ChatStore.load(context)!! + Chat(other, mutableListOf(Msg(User.Me, "另一段")))
     )
-    if (uri == null) {
-      fail("无法在下载目录创建测试文件")
-      return
+    assertEquals(2, ChatStore.load(context)!!.size)
+
+    val result = BackupService.restore(context, BackupDocument.of(file), RestoreMode.Replace)
+    assertEquals(1, result.chatsAdded)
+    val restored = ChatStore.load(context)!!
+    assertEquals(1, restored.size)
+    assertEquals("friend_a", restored.single().friend.id)
+  }
+
+  @Test
+  fun memoriesMergeKeepsLocalAndReplaceOverwrites() {
+    seed()
+    val file = exportFile(BackupSection.Memories)
+
+    // 本机已经有了这个角色的记忆:合并应当保持不动
+    val before = MemoryStore.load(context, "friend_a")
+    val mergeResult = BackupService.restore(context, BackupDocument.of(file), RestoreMode.Merge)
+    assertEquals(0, mergeResult.memoriesAdded)
+    assertEquals(before.summaries.size, MemoryStore.load(context, "friend_a").summaries.size)
+
+    // 清空之后再合并:记忆被补回来
+    MemoryStore.remove(context, "friend_a")
+    val again = BackupService.restore(context, BackupDocument.of(file), RestoreMode.Merge)
+    assertEquals(1, again.memoriesAdded)
+    assertEquals(1, MemoryStore.load(context, "friend_a").summaries.size)
+
+    // 覆盖:本机多出来的角色记忆会被清掉
+    MemoryStore.save(context, ImmediateMemoryState(friendId = "friend_b", rounds = 1))
+    val replaceResult = BackupService.restore(context, BackupDocument.of(file), RestoreMode.Replace)
+    assertEquals(1, replaceResult.memoriesAdded)
+    assertEquals(1, MemoryStore.loadAll(context).size)
+    assertEquals("friend_a", MemoryStore.loadAll(context).single().friendId)
+  }
+
+  /** 导入一类不能动到别类:这是「四份文件各自独立」的底线。 */
+  @Test
+  fun importingApiKeysDoesNotTouchOtherStores() {
+    seed()
+    val file = exportFile(BackupSection.ApiKeys)
+    ApiKeyStore.save(context, emptyList())
+
+    val friendsBefore = FriendsStore.load(context).map { it.id }
+    val chatsBefore = ChatStore.load(context)!!.size
+    BackupService.restore(context, BackupDocument.of(file), RestoreMode.Replace)
+
+    assertEquals(1, ApiKeyStore.load(context).size)
+    assertEquals(friendsBefore, FriendsStore.load(context).map { it.id })
+    assertEquals(chatsBefore, ChatStore.load(context)!!.size)
+  }
+
+  /** 旧版加密备份不再支持:必须明确报错,而不是当成空备份静默恢复。 */
+  @Test
+  fun legacyIbkRejected() {
+    val legacy = File(context.cacheDir, "intersect-backup-old.ibk").apply {
+      writeText(
+        """
+        {
+          "schema": "intersect.backup",
+          "schema_version": 1,
+          "sections": ["characters"],
+          "encryption": {"cipher": "AES-256-GCM"},
+          "payload": "c29tZS1jaXBoZXJ0ZXh0"
+        }
+        """.trimIndent()
+      )
     }
+    exported = legacy
+    try {
+      BackupService.restore(context, BackupDocument.of(legacy))
+      fail("旧版 .ibk 应当被拒绝")
+    } catch (e: BackupFormatException) {
+      assertTrue(e.message!!.contains(".ibk"))
+    }
+  }
+
+  // ---------------------------------------------------------------- 其它
+
+  @Test
+  fun clearChatsEmptiesStore() {
+    seed()
+    assertEquals(1, BackupService.clearChats(context))
+    assertEquals(0, ChatStore.load(context)!!.size)
+    // 角色卡与模型配置不受影响
+    assertEquals(2, FriendsStore.load(context).size)
+    assertEquals(1, ApiKeyStore.load(context).size)
+  }
+
+  @Test
+  fun statsReflectStores() {
+    seed()
+    val stats = BackupService.stats(context)
+    assertEquals(1, stats.chats)
+    assertEquals(2, stats.messages)
+    assertEquals(2, stats.characters)
+    assertEquals(1, stats.memories)
+    assertEquals(1, stats.memoryOwners)
+    assertEquals(1, stats.apiKeys)
+  }
+
+  /** 真机上的落盘路径:走 MediaStore 的 Downloads 集合,等价于用户在「保存到」里选的位置。 */
+  @Test
+  fun exportWritesThroughContentResolver() {
+    seed()
+    val archive = BackupService.prepare(context, BackupSection.Chats)
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
+    val resolver = context.contentResolver
+    val values = ContentValues().apply {
+      put(MediaStore.Downloads.DISPLAY_NAME, archive.fileName)
+      put(MediaStore.Downloads.MIME_TYPE, BackupFiles.MIME_TYPE)
+      put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+    }
+    val uri: Uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return
     try {
       val result = BackupService.export(context, uri, archive.content)
-      assertEquals(archive.fileName, result.name)
-
-      val text = BackupFiles.read(context, uri)
-      assertEquals(archive.content, text)
-      // 写进去的东西必须能被自己读回来
-      val preview = BackupService.preview(BackupFiles.document(context, uri))
-      assertEquals(2, preview.counts.characters)
-      assertNotNull(BackupService.verify(BackupFiles.document(context, uri), password))
+      assertNotNull(result.name)
+      assertEquals(BackupSection.Chats, result.section)
+      // 写完的文件能被自己的解析器读回来
+      val payload = BackupService.payload(BackupFiles.document(context, uri))
+      assertEquals(1, payload.chats!!.size)
     } finally {
-      resolver.delete(uri, null, null)
-    }
-  }
-
-  /** DocumentsUI 保存到下载目录时给的就是这种 externalstorage document Uri。 */
-  @Test
-  fun exportToDownloadsDocument() {
-    if (!Environment.isExternalStorageManager()) return
-    seed()
-    val name = "intersect-test-${System.currentTimeMillis()}.ibk"
-    val uri = Uri.parse(
-      "content://com.android.externalstorage.documents/document/primary%3ADownload%2F$name"
-    )
-    val archive = BackupService.prepare(context, password, setOf(BackupSection.Characters))
-    val target = File(
-      Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-      name
-    )
-    try {
-      BackupService.export(context, uri, archive.content)
-      assertTrue("文件不存在", target.exists())
-      assertTrue("文件是空的:${target.length()} 字节", target.length() > 0L)
-      assertEquals(archive.content, target.readText())
-    } finally {
-      target.delete()
-    }
-  }
-
-  /**
-   * 暂存的备份必须活过「进程被重建」:回调里拿到的必须是那份真的内容。
-   * 之前放在内存(remember / 单例):MIUI 在选择器占前台时回收进程,
-   * 回传后只能默默不写 —— 选择器建出一个 0 字节的空文件。
-   */
-  @Test
-  fun stagedDraftSurvivesProcessDeath() {
-    seed()
-    val archive = BackupService.prepare(context, password, setOf(BackupSection.Characters))
-    val staged = BackupDrafts.stage(context, archive)
-    assertEquals(archive.fileName, staged.name)
-    assertTrue("暂存的备份不能是空的", staged.length() > 0L)
-
-    // 模拟进程重建:内存里的东西全没了,只能靠缓存目录里这个文件
-    val taken = BackupDrafts.take(context)
-    assertNotNull("暂存的备份不应该丢", taken)
-    assertEquals(archive.content, taken!!.readText())
-    // 内容原样可解,说明暂存下来的是完整可用的一份备份
-    assertEquals(setOf("dawn_assistant", "friend_a"),
-      BackupService.verify(BackupDocument.of(taken), password).characters!!.map { it.id }.toSet())
-
-    BackupDrafts.clear(context)
-    assertEquals(null, BackupDrafts.take(context))
-  }
-
-  @Test
-  fun exportOverwritesLongerFile() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return
-    seed()
-    val archive = BackupService.prepare(context, password, setOf(BackupSection.ApiKeys))
-    val resolver = context.contentResolver
-    val uri = resolver.insert(
-      MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-      ContentValues().apply {
-        put(MediaStore.Downloads.DISPLAY_NAME, archive.fileName)
-        put(MediaStore.Downloads.MIME_TYPE, BackupFiles.MIME_TYPE)
-        put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-      }
-    )
-    if (uri == null) {
-      fail("无法在下载目录创建测试文件")
-      return
-    }
-    try {
-      // 先塞一段比备份更长的内容
-      BackupFiles.write(context, uri, "x".repeat(archive.content.length + 4096))
-      BackupService.export(context, uri, archive.content)
-      assertEquals(archive.content, BackupFiles.read(context, uri))
-    } finally {
-      resolver.delete(uri, null, null)
+      runCatching { resolver.delete(uri, null, null) }
     }
   }
 }

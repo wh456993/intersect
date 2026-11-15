@@ -69,6 +69,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.reimei.intersect.R
 import com.reimei.intersect.data.ConfigUsage
+import com.reimei.intersect.data.ModelNames
 import com.reimei.intersect.data.ModelPrice
 import com.reimei.intersect.data.PriceConfig
 import com.reimei.intersect.data.PriceConfigStore
@@ -166,6 +167,8 @@ fun UsagePage(
   fun labelOf(dim: UsageDimension, key: String): String = when (dim) {
     UsageDimension.KeyGroup -> keyGroupName(key)
     UsageDimension.Window -> windowName(key)
+    // 流水里存的是模型 ID,列表上显示好认的名字
+    UsageDimension.Model -> ModelNames.display(key)
     else -> key
   }
 
@@ -1593,7 +1596,8 @@ private fun PriceSheet(
         Column(Modifier.padding(bottom = 12.dp)) {
           Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-              name,
+              // 单价按模型 ID 存,这里显示好认的名字
+              ModelNames.display(name),
               Modifier.weight(1f),
               fontSize = 12.sp,
               color = AppTheme.colors.textPrimary,

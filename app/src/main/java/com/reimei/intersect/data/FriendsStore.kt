@@ -60,6 +60,16 @@ internal fun userToJson(user: User): JSONObject = JSONObject().apply {
   user.role?.let { put("role", it) }
   user.personality?.let { put("personality", it) }
   put("roleplayMode", user.roleplayMode.name)
+  // 世界侧设定(角色代入专属):只本地保存,不进请求体。没填就不写,老数据里也没有
+  user.worldview?.takeIf { !it.isEmpty }?.let { worldview ->
+    put("worldview", JSONObject().apply {
+      worldview.laws?.takeIf { it.isNotBlank() }?.let { put("laws", it) }
+      worldview.factions?.takeIf { it.isNotBlank() }?.let { put("factions", it) }
+      worldview.economy?.takeIf { it.isNotBlank() }?.let { put("economy", it) }
+      worldview.history?.takeIf { it.isNotBlank() }?.let { put("history", it) }
+    })
+  }
+  user.background?.takeIf { it.isNotBlank() }?.let { put("background", it) }
   // 唯一 ID 跟着角色一起存:备份([BackupFormat])复用这一段,所以恢复 / 换机都不会换号
   user.uid?.let { put("uid", it) }
 }
@@ -85,5 +95,15 @@ internal fun userFromJson(obj: JSONObject): User? {
     // 老数据还没有这一项:留 null,由 MainViewModel 读入时补号;内置角色永远是 0
     uid = builtIn?.uid
       ?: if (obj.has("uid")) obj.optLong("uid", 0L).takeIf { it > 0L } else null,
+    // 世界侧设定:老数据 / 本体代入都没有,读不到就是 null
+    worldview = obj.optJSONObject("worldview")?.let { json ->
+      Worldview(
+        laws = json.optString("laws").takeIf { it.isNotEmpty() },
+        factions = json.optString("factions").takeIf { it.isNotEmpty() },
+        economy = json.optString("economy").takeIf { it.isNotEmpty() },
+        history = json.optString("history").takeIf { it.isNotEmpty() },
+      )
+    }?.takeIf { !it.isEmpty },
+    background = obj.optString("background").takeIf { it.isNotEmpty() },
   )
 }

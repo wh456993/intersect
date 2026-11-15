@@ -40,6 +40,7 @@ import com.reimei.intersect.data.ApiModelListResult
 import com.reimei.intersect.data.ApiModels
 import com.reimei.intersect.data.ApiProbe
 import com.reimei.intersect.data.ApiTestResult
+import com.reimei.intersect.data.ModelNames
 import com.reimei.intersect.ui.theme.AppTheme
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -124,7 +125,7 @@ private fun ApiKeyRow(apiKey: ApiKey, onClick: () -> Unit) {
       )
       Spacer(Modifier.height(4.dp))
       Text(
-        listOf(apiKey.model, apiKey.url).filter { it.isNotEmpty() }.joinToString(" · "),
+        listOf(ModelNames.display(apiKey.model), apiKey.url).filter { it.isNotEmpty() }.joinToString(" · "),
         fontSize = 12.sp,
         color = AppTheme.colors.textSecondary,
         maxLines = 1,
@@ -592,7 +593,7 @@ private fun ModelSelectRow(model: String, onClick: () -> Unit) {
   ) {
     Text("模型", Modifier.width(64.dp), fontSize = 16.sp, color = AppTheme.colors.textPrimary)
     Text(
-      model.ifEmpty { "选择或填写模型" },
+      ModelNames.display(model).ifEmpty { "选择或填写模型" },
       Modifier.weight(1f),
       fontSize = 16.sp,
       color = if (model.isEmpty()) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
@@ -840,7 +841,8 @@ private fun ModelOption(model: String, selected: Boolean, onClick: () -> Unit) {
     verticalAlignment = Alignment.CenterVertically
   ) {
     Text(
-      model,
+      // 存的是接口认的模型 ID,界面上显示好认的名字
+      ModelNames.display(model),
       Modifier.weight(1f),
       fontSize = 15.sp,
       color = if (selected) AppTheme.colors.iconCurrent else AppTheme.colors.textPrimary,

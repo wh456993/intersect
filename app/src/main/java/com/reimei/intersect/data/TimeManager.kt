@@ -20,6 +20,15 @@ object TimeManager {
     SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
 
   /**
+   * 把**毫秒级时间戳**格式化成 "yyyy-MM-dd HH:mm"(本地时区)。
+   *
+   * 与 [nowDateTime] 同一条口径,区别只在于时间点是给定的 —— 场景时间([SceneTime])
+   * 需要把「现在」传进来,才能做单测与按固定时刻复现。
+   */
+  fun formatMinuteAt(epochMillis: Long): String =
+    SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(epochMillis))
+
+  /**
    * 把秒级时间戳按本地时区格式化成 "yyyy-MM-dd HH:mm:ss"。
    *
    * 记忆索引里存的是 epoch 秒(不存格式化后的字符串):换语言、换时区都还能正确显示。

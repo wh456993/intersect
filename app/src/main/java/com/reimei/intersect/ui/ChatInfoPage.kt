@@ -36,6 +36,7 @@ import com.reimei.intersect.data.ApiKey
 import com.reimei.intersect.data.Chat
 import com.reimei.intersect.data.DawnAssistant
 import com.reimei.intersect.data.Msg
+import com.reimei.intersect.data.ModelNames
 import com.reimei.intersect.data.User
 import com.reimei.intersect.ui.theme.AppTheme
 
@@ -116,15 +117,7 @@ fun ChatInfoPage(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
           )
-          val signature = chat.friend.signature
-          Text(
-            signature?.takeIf { it.isNotBlank() } ?: "这个人很懒,什么都没写",
-            Modifier.padding(top = 4.dp),
-            fontSize = 12.sp,
-            color = AppTheme.colors.textSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
+          // 名片只留名字:角色卡不再有签名这一项(创建角色时就不填,填不出东西的一行只会一直显示占位语)
         }
         Spacer(Modifier.width(8.dp))
         // 名片本身就是入口:右侧的箭头表示点它能进角色设置
@@ -323,7 +316,7 @@ private fun ChatModelRow(
         when {
           apiKey == null -> "还没有注册 API KEY"
           apiKey.model.isBlank() -> "未填写模型"
-          else -> apiKey.model
+          else -> ModelNames.display(apiKey.model)
         },
         fontSize = 15.sp,
         color = if (apiKey == null) AppTheme.colors.textSecondary else AppTheme.colors.textPrimary,
@@ -396,7 +389,8 @@ private fun ApiKeyPicker(
           item(key = "follow_default") {
             ApiKeyOption(
               name = "跟随默认",
-              detail = apiKeys.firstOrNull()?.model?.takeIf { it.isNotBlank() } ?: "",
+              detail = apiKeys.firstOrNull()?.model?.takeIf { it.isNotBlank() }
+                ?.let { ModelNames.display(it) } ?: "",
               selected = selectedId == null,
               onClick = { onPick(null) }
             )
@@ -404,7 +398,8 @@ private fun ApiKeyPicker(
           items(apiKeys, key = { it.id }) { key ->
             ApiKeyOption(
               name = key.name.ifEmpty { "未命名" },
-              detail = key.model.ifBlank { "未填写模型" },
+              detail = key.model.takeIf { it.isNotBlank() }?.let { ModelNames.display(it) }
+                ?: "未填写模型",
               selected = key.id == selectedId,
               onClick = { onPick(key) }
             )

@@ -3,67 +3,54 @@ package com.reimei.intersect.ui
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.AlertDialog
-import androidx.compose.material.Checkbox
-import androidx.compose.material.CheckboxDefaults
+import androidx.compose.material.Icon
 import com.reimei.intersect.i18n.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.reimei.intersect.data.BackupCryptoException
+import com.reimei.intersect.R
 import com.reimei.intersect.data.BackupDocument
 import com.reimei.intersect.data.BackupDrafts
 import com.reimei.intersect.data.BackupFiles
+import com.reimei.intersect.data.BackupFormat
 import com.reimei.intersect.data.BackupFormatException
 import com.reimei.intersect.data.BackupPreview
 import com.reimei.intersect.data.BackupSection
 import com.reimei.intersect.data.BackupService
+import com.reimei.intersect.data.BackupStats
 import com.reimei.intersect.data.RestoreMode
 import com.reimei.intersect.ui.theme.AppTheme
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** 备份文件口令的位数:6 位纯数字,好记也好输入。 */
-private const val PASSWORD_LENGTH = 6
-
-/** 备份列表里的一条:能解析出文件头的才是有效备份。 */
-private class BackupItem(
-  val document: BackupDocument,
-  val preview: BackupPreview?,
-  val error: String?,
-)
-
 /**
  * 「数据备份」页。
  *
- * 上半部分导出:勾选要带走的内容(角色 / 聊天记录 / API KEY),设一个 6 位数字口令,
- * 生成一份用口令加密的备份文件。落到哪里由用户自己在系统选择器里点 —— 不能写进应用私有目录,
- * 否则卸载应用就把备份一起删了。下半部分恢复:从选择器挑一份备份文件(或本机旧目录里扫描到的),
- * 输口令即可合并或覆盖回本机。
+ * 四张卡片:聊天记录、角色卡、记忆库、模型配置。每一类都独立导出 / 导入,
+ * 一份文件只装一类内容,互不影响 —— 只想带走角色设定就不会顺带把 API KEY 也发出去。
  *
- * 口令本身不做任何存储:它只在这一刻参与 PBKDF2 派生,丢了就再也解不开那份文件。
+ * 备份文件是**明文 `.json`**:没有口令、没有加密,用文本编辑器打开就能读。
+ * 换机、排障都简单,代价是任何拿到文件的人也能读,所以页面上明确写着这一点。
+ *
+ * 落到哪里由用户自己在系统选择器里点 —— 不能写进应用私有目录,
+ * 否则卸载应用就把备份一起删了(见 [BackupDrafts] 与 [BackupFiles] 的说明)。
  */
 @Composable
 fun BackupPage(
@@ -75,33 +62,24 @@ fun BackupPage(
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
 
-  var checked by remember { mutableStateOf(BackupSection.entries.toSet()) }
-  var password by remember { mutableStateOf("") }
-  var confirm by remember { mutableStateOf("") }
-  var busy by remember { mutableStateOf(false) }
+  var stats by remember { mutableStateOf(BackupStats()) }
+  var busy by remember { mutableStateOf<BackupSection?>(null) }
   var message by remember { mutableStateOf<BackupMessage?>(null) }
-  var restoring by remember { mutableStateOf<BackupItem?>(null) }
-
-  var items by remember { mutableStateOf<List<BackupItem>>(emptyList()) }
-  var listLoading by remember { mutableStateOf(true) }
-  var listKey by remember { mutableStateOf(0) }
+  var pending by remember { mutableStateOf<PendingRestore?>(null) }
+  var confirmClear by remember { mutableStateOf(false) }
 
   // 待写入的备份刻意不放 remember:选择器盖住应用期间组合可能被销毁重建,
   // 放 remember 里那份内容会消失,回调就只能默默什么都不写(见 BackupDrafts 的说明)。
 
-  fun previewOf(document: BackupDocument): BackupItem =
-    runCatching { BackupService.preview(document) }.fold(
-      onSuccess = { BackupItem(document, it, null) },
-      onFailure = { BackupItem(document, null, it.message ?: "无法读取") }
-    )
+  // 上次导出到一半进程被杀时,暂存目录里可能还留着一份明文:进页面先清掉
+  LaunchedEffect(Unit) { BackupDrafts.clear(context) }
 
-  LaunchedEffect(listKey) {
-    listLoading = true
-    items = withContext(Dispatchers.IO) {
-      BackupFiles.list(context).map { file -> previewOf(BackupDocument.of(file)) }
-    }
-    listLoading = false
+  // 读盘要跑在 IO 上,而调用点既在协程里(页面首帧)也在回调里(导入完成),所以内部自己开协程
+  fun refreshStats() {
+    scope.launch { stats = withContext(Dispatchers.IO) { BackupService.stats(context) } }
   }
+
+  LaunchedEffect(Unit) { refreshStats() }
 
   // 导出:系统的「保存到」选择器拿到 Uri 后再写进去。
   //
@@ -110,10 +88,10 @@ fun BackupPage(
   val exportLauncher = rememberLauncherForActivityResult(
     ActivityResultContracts.CreateDocument(BackupFiles.MIME_TYPE)
   ) { uri ->
-    busy = false
     if (uri == null) {
       // 用户取消了保存,什么都没建
       BackupDrafts.clear(context)
+      busy = null
       return@rememberLauncherForActivityResult
     }
     scope.launch {
@@ -128,79 +106,101 @@ fun BackupPage(
             .also { staged.delete() }
         }
       }
+      // 写盘结束才放开按钮:中途放开再点一次会把这份暂存文件删掉
+      busy = null
       if (outcome == null) {
         message = BackupMessage(
-          "备份未完成",
-          "已经选好位置,但待写入的备份找不到了。\n\n请重新点一次「开始备份」。"
+          "导出未完成",
+          "已经选好位置,但待写入的备份找不到了。\n\n请重新点一次「导出」。"
         )
         return@launch
       }
       outcome.fold(
         onSuccess = { result ->
-          // 口令已经不参与后续操作,导出完就把它从输入框里抹掉
-          password = ""
-          confirm = ""
           message = BackupMessage(
-            title = "备份完成",
-            body = "${result.counts.summary()}\n\n已保存到你选择的位置:\n${result.name}"
+            title = "导出完成",
+            body = result.counts.summary(),
+            // 拆成独立行而不是拼成一整串:整串查不到翻译表,i18n 会静默失效
+            detail = "已保存到你选择的位置:\n${result.name}"
           )
         },
         onFailure = { e ->
-          message = BackupMessage("备份失败", e.message ?: "未知错误")
+          message = BackupMessage("导出失败", e.message ?: "未知错误")
         }
       )
     }
   }
 
-  // 恢复:系统的「打开文件」选择器挑一份备份(可以是别的设备 / 别的位置上的)
-  val importLauncher = rememberLauncherForActivityResult(
-    ActivityResultContracts.OpenDocument()
-  ) { uri ->
-    if (uri == null) return@rememberLauncherForActivityResult
-    scope.launch {
-      val item = withContext(Dispatchers.IO) {
-        previewOf(BackupFiles.document(context, uri))
-      }
-      if (item.preview == null) {
-        message = BackupMessage(
-          "无法打开该文件",
-          item.error ?: "它可能不是本应用的备份文件"
-        )
-      } else {
-        restoring = item
-      }
-    }
-  }
-
-  val passwordOk = isBackupPassword(password)
-  val canExport = checked.isNotEmpty() && passwordOk && password == confirm && !busy
-
-  fun startExport() {
-    if (!canExport) return
-    busy = true
-    val draftPassword = password
-    val draftSections = checked
+  fun startExport(section: BackupSection) {
+    if (busy != null) return
+    busy = section
     scope.launch {
       val outcome = runCatching {
         withContext(Dispatchers.IO) {
           // 打包 + 暂存都在选位置之前做完:选完位置之后可能连进程都不是原来那个了
-          BackupDrafts.stage(context, BackupService.prepare(context, draftPassword, draftSections))
+          BackupDrafts.stage(context, BackupService.prepare(context, section))
         }
       }
       outcome.fold(
         onSuccess = { staged ->
           runCatching { exportLauncher.launch(staged.name) }.onFailure { e ->
             BackupDrafts.clear(context)
-            busy = false
-            message = BackupMessage("备份失败", e.message ?: "打不开文件选择器")
+            busy = null
+            message = BackupMessage("导出失败", e.message ?: "打不开文件选择器")
           }
         },
         onFailure = { e ->
           BackupDrafts.clear(context)
-          busy = false
-          message = BackupMessage("备份失败", e.message ?: "未知错误")
+          busy = null
+          message = BackupMessage("导出失败", e.message ?: "未知错误")
         }
       )
+    }
+  }
+
+  // 导入:系统的「打开文件」选择器挑一份备份(可以是别的设备 / 别的位置上的)
+  val importLauncher = rememberLauncherForActivityResult(
+    ActivityResultContracts.OpenDocument()
+  ) { uri ->
+    if (uri == null) return@rememberLauncherForActivityResult
+    busy = null
+    scope.launch {
+      val outcome = runCatching {
+        withContext(Dispatchers.IO) {
+          val document = BackupFiles.document(context, uri)
+          PendingRestore(document, BackupService.preview(document))
+        }
+      }
+      outcome.fold(
+        onSuccess = { pending = it },
+        onFailure = { e ->
+          message = BackupMessage(
+            "无法打开该文件",
+            when (e) {
+              is BackupFormatException -> e.message ?: "它可能不是本应用的备份文件"
+              else -> e.message ?: "它可能不是本应用的备份文件"
+            }
+          )
+        }
+      )
+    }
+  }
+
+  fun startImport() {
+    if (busy != null) return
+    runCatching { importLauncher.launch(BackupFiles.PICKER_TYPES) }.onFailure { e ->
+      message = BackupMessage("无法打开文件选择器", e.message ?: "未知错误")
+    }
+  }
+
+  fun clearChats() {
+    confirmClear = false
+    scope.launch {
+      val count = withContext(Dispatchers.IO) { BackupService.clearChats(context) }
+      refreshStats()
+      // 磁盘上的数据已经变了,让 ViewModel 重新读一遍
+      onRestored()
+      message = BackupMessage("已删除", "已清空 $count 个会话的全部聊天记录。")
     }
   }
 
@@ -218,56 +218,67 @@ fun BackupPage(
         .navigationBarsPadding()
         .padding(horizontal = 12.dp, vertical = 12.dp)
     ) {
-      // ---------------- 导出
-      BackupCard(title = "导出备份") {
-        BackupSection.entries.forEach { section ->
-          BackupSectionRow(
-            section = section,
-            checked = section in checked,
-            onToggle = {
-              checked = if (section in checked) checked - section else checked + section
-            }
-          )
-        }
-        BackupDivider()
-        PasswordField(
-          label = "备份口令",
-          value = password,
-          onValueChange = { password = it }
+      Text(
+        "备份文件是明文 .json,不加密,导出时由你选择保存位置。",
+        Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+        fontSize = 12.sp,
+        color = AppTheme.colors.textSecondary
+      )
+      Spacer(Modifier.height(10.dp))
+
+      SectionCard(
+        title = BackupSection.Chats.label,
+        subtitle = "跨格式备份、导出与恢复",
+        icon = R.drawable.ui_backup_history,
+        summary = "当前共有 ${stats.chats} 条聊天记录(共 ${stats.messages} 条消息)。",
+        busy = busy == BackupSection.Chats,
+        onExport = { startExport(BackupSection.Chats) },
+        onImport = { startImport() },
+      ) {
+        PillButton(
+          text = "删除全部",
+          icon = R.drawable.ui_backup_delete,
+          modifier = Modifier.fillMaxWidth(),
+          tint = AppTheme.colors.badge,
+          onClick = { confirmClear = true }
         )
-        Spacer(Modifier.height(12.dp))
-        PasswordField(
-          label = "确认口令",
-          summary = if (confirm.isNotEmpty() && confirm != password) "两次输入不一致" else "再输入一次",
-          value = confirm,
-          onValueChange = { confirm = it },
-          error = confirm.isNotEmpty() && confirm != password
-        )
-        Spacer(Modifier.height(16.dp))
-        BackupButton(text = if (busy) "正在备份..." else "开始备份", enabled = canExport, onClick = { startExport() })
       }
 
       Spacer(Modifier.height(12.dp))
 
-      // ---------------- 恢复
-      BackupCard(title = "从备份恢复") {
-        BackupButton(text = "选择备份文件", enabled = !busy) {
-          importLauncher.launch(arrayOf("*/*"))
-        }
-        if (listLoading) {
-          BackupHint("正在扫描本机旧备份...")
-        } else if (items.isEmpty()) {
-          BackupHint("本机旧目录里没有备份文件")
-        } else {
-          BackupDivider()
-          items.forEachIndexed { index, item ->
-            if (index > 0) BackupDivider()
-            BackupFileRow(item) { restoring = item }
-          }
-          Spacer(Modifier.height(8.dp))
-        }
-        BackupButton(text = "重新扫描本机旧备份", enabled = !listLoading) { listKey++ }
-      }
+      SectionCard(
+        title = BackupSection.Characters.label,
+        subtitle = "备份与恢复角色卡配置",
+        icon = R.drawable.ui_dev_character,
+        summary = "当前共有 ${stats.characters} 个角色卡。",
+        busy = busy == BackupSection.Characters,
+        onExport = { startExport(BackupSection.Characters) },
+        onImport = { startImport() },
+      )
+
+      Spacer(Modifier.height(12.dp))
+
+      SectionCard(
+        title = BackupSection.Memories.label,
+        subtitle = "跨配置备份与恢复,保持思维链一致",
+        icon = R.drawable.ui_backup_memory,
+        summary = "当前共有 ${stats.memories} 条记忆(${stats.memoryOwners} 个角色)。",
+        busy = busy == BackupSection.Memories,
+        onExport = { startExport(BackupSection.Memories) },
+        onImport = { startImport() },
+      )
+
+      Spacer(Modifier.height(12.dp))
+
+      SectionCard(
+        title = BackupSection.ApiKeys.label,
+        subtitle = "备份与恢复所有模型设置,包括 API 密钥和参数",
+        icon = R.drawable.ui_backup_model,
+        summary = "当前共有 ${stats.apiKeys} 个模型配置。",
+        busy = busy == BackupSection.ApiKeys,
+        onExport = { startExport(BackupSection.ApiKeys) },
+        onImport = { startImport() },
+      )
     }
   }
 
@@ -286,19 +297,60 @@ fun BackupPage(
       },
       title = { Text(current.title, fontSize = 16.sp, color = AppTheme.colors.textPrimary) },
       text = {
-        Text(current.body, fontSize = 13.sp, color = AppTheme.colors.textSecondary)
+        Column {
+          Text(current.body, fontSize = 13.sp, color = AppTheme.colors.textSecondary)
+          current.detail?.let { detail ->
+            Spacer(Modifier.height(8.dp))
+            Text(detail, fontSize = 13.sp, color = AppTheme.colors.textSecondary)
+          }
+        }
       }
     )
   }
 
-  val target = restoring
+  if (confirmClear) {
+    AlertDialog(
+      onDismissRequest = { confirmClear = false },
+      title = { Text("删除全部聊天记录", fontSize = 16.sp, color = AppTheme.colors.textPrimary) },
+      text = {
+        Text(
+          "本机的 ${stats.chats} 个会话及其中的 ${stats.messages} 条消息会全部删除,无法恢复。\n\n角色卡、记忆库与模型配置不受影响。",
+          fontSize = 13.sp,
+          color = AppTheme.colors.textSecondary
+        )
+      },
+      confirmButton = {
+        Text(
+          "删除",
+          Modifier
+            .clickable { clearChats() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+          fontSize = 15.sp,
+          color = AppTheme.colors.badge
+        )
+      },
+      dismissButton = {
+        Text(
+          "取消",
+          Modifier
+            .clickable { confirmClear = false }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+          fontSize = 15.sp,
+          color = AppTheme.colors.textSecondary
+        )
+      }
+    )
+  }
+
+  val target = pending
   if (target != null) {
     RestoreDialog(
       item = target,
-      onDismiss = { restoring = null },
-      onRestored = { result ->
-        restoring = null
-        message = BackupMessage("恢复完成", result)
+      onDismiss = { pending = null },
+      onDone = { title, body ->
+        pending = null
+        message = BackupMessage(title, body)
+        refreshStats()
         // 磁盘上的数据已经变了,让 ViewModel 重新读一遍
         onRestored()
       }
@@ -306,228 +358,153 @@ fun BackupPage(
   }
 }
 
-private class BackupMessage(val title: String, val body: String)
+private class BackupMessage(
+  val title: String,
+  val body: String,
+  /** 次一级的说明(如保存到了哪里),正常颜色。 */
+  val detail: String? = null,
+)
 
-/** 口令规则:恰好 6 位纯数字。 */
-internal fun isBackupPassword(text: String): Boolean =
-  text.length == PASSWORD_LENGTH && text.all { it in '0'..'9' }
+/** 已经读出来、等用户确认要不要恢复的一份文件。 */
+private class PendingRestore(
+  val document: BackupDocument,
+  val preview: BackupPreview,
+)
 
+/** 一张卡片:图标 + 标题 + 副标题 + 现在有多少条 + 导出/导入按钮(可再加一行按钮)。 */
 @Composable
-private fun BackupCard(
+private fun SectionCard(
   title: String,
-  content: @Composable ColumnScope.() -> Unit
+  subtitle: String,
+  @DrawableRes icon: Int,
+  summary: String,
+  busy: Boolean,
+  onExport: () -> Unit,
+  onImport: () -> Unit,
+  footer: @Composable (() -> Unit)? = null
 ) {
   Column(
     Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(12.dp))
+      .clip(RoundedCornerShape(16.dp))
       .background(AppTheme.colors.listItem)
-      .padding(horizontal = 16.dp, vertical = 14.dp)
+      .border(1.dp, AppTheme.colors.chatListDivider, RoundedCornerShape(16.dp))
+      .padding(16.dp)
   ) {
-    Text(title, fontSize = 16.sp, fontWeight = FontWeight.Medium, color = AppTheme.colors.textPrimary)
-    Spacer(Modifier.height(8.dp))
-    content()
-  }
-}
-
-@Composable
-private fun BackupSectionRow(section: BackupSection, checked: Boolean, onToggle: () -> Unit) {
-  Row(
-    Modifier
-      .fillMaxWidth()
-      .clickable(onClick = onToggle)
-      .padding(vertical = 8.dp),
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Column(Modifier.weight(1f)) {
-      Text(section.label, fontSize = 15.sp, color = AppTheme.colors.textPrimary)
-    }
-    Spacer(Modifier.width(12.dp))
-    // 勾选框只做展示,点击交给整行
-    Checkbox(
-      checked = checked,
-      onCheckedChange = null,
-      colors = CheckboxDefaults.colors(
-        checkedColor = AppTheme.colors.iconCurrent,
-        uncheckedColor = AppTheme.colors.textSecondary,
-        checkmarkColor = AppTheme.colors.onFab
-      )
-    )
-  }
-}
-
-@Composable
-private fun PasswordField(
-  label: String,
-  value: String,
-  onValueChange: (String) -> Unit,
-  error: Boolean = false,
-  summary: String? = null
-) {
-  Column(Modifier.fillMaxWidth()) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-      Text(label, Modifier.width(84.dp), fontSize = 15.sp, color = AppTheme.colors.textPrimary)
       Box(
         Modifier
-          .weight(1f)
-          .clip(RoundedCornerShape(8.dp))
-          .background(AppTheme.colors.textFieldBackground)
-          .padding(horizontal = 12.dp, vertical = 8.dp)
+          .size(44.dp)
+          .clip(RoundedCornerShape(12.dp))
+          .background(AppTheme.colors.iconCurrent.copy(alpha = 0.10f)),
+        contentAlignment = Alignment.Center
       ) {
-        if (value.isEmpty()) {
-          Text(
-            "•".repeat(PASSWORD_LENGTH),
-            fontSize = 16.sp,
-            color = AppTheme.colors.more
-          )
-        }
-        BasicTextField(
-          value = value,
-          onValueChange = { input ->
-            // 只收数字,且最多 6 位
-            onValueChange(input.filter { it in '0'..'9' }.take(PASSWORD_LENGTH))
-          },
-          modifier = Modifier.fillMaxWidth(),
-          textStyle = TextStyle(fontSize = 16.sp, color = AppTheme.colors.textPrimary),
-          singleLine = true,
-          cursorBrush = SolidColor(AppTheme.colors.iconCurrent),
-          visualTransformation = PasswordVisualTransformation(),
-          keyboardOptions = KeyboardOptions(
-            keyboardType = KeyboardType.NumberPassword,
-            imeAction = ImeAction.Next
-          )
+        Icon(
+          painterResource(icon),
+          contentDescription = null,
+          Modifier.size(24.dp),
+          tint = AppTheme.colors.iconCurrent
         )
       }
+      Spacer(Modifier.width(12.dp))
+      Column(Modifier.weight(1f)) {
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.Medium, color = AppTheme.colors.textPrimary)
+        Spacer(Modifier.height(2.dp))
+        Text(subtitle, fontSize = 12.sp, color = AppTheme.colors.textSecondary)
+      }
     }
-    if (summary != null) {
-      Text(
-        summary,
-        Modifier.padding(top = 4.dp, start = 84.dp),
-        fontSize = 12.sp,
-        color = if (error) AppTheme.colors.badge else AppTheme.colors.textSecondary
+    Spacer(Modifier.height(16.dp))
+    Text(summary, fontSize = 15.sp, color = AppTheme.colors.textPrimary)
+    Spacer(Modifier.height(16.dp))
+    Row(Modifier.fillMaxWidth()) {
+      // 「导出 / 导入」各自占一半:两个按钮一样大,手指不用瞄准
+      PillButton(
+        text = if (busy) "正在导出..." else "导出",
+        icon = R.drawable.ui_download_tray,
+        modifier = Modifier.weight(1f),
+        enabled = !busy,
+        onClick = onExport
       )
+      Spacer(Modifier.width(12.dp))
+      PillButton(
+        text = "导入",
+        icon = R.drawable.ui_backup_upload,
+        modifier = Modifier.weight(1f),
+        enabled = !busy,
+        onClick = onImport
+      )
+    }
+    if (footer != null) {
+      Spacer(Modifier.height(12.dp))
+      footer()
     }
   }
 }
 
+/** 卡片里的按钮:浅色底 + 同色图标与文字,危险操作用红色传 [tint]。 */
 @Composable
-private fun BackupButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+private fun PillButton(
+  text: String,
+  @DrawableRes icon: Int,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  tint: Color = AppTheme.colors.iconCurrent,
+  onClick: () -> Unit
+) {
+  val content = if (enabled) tint else AppTheme.colors.textSecondary
   Box(
-    Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(8.dp))
-      .background(if (enabled) AppTheme.colors.iconCurrent else AppTheme.colors.chatListDivider)
+    modifier
+      .clip(RoundedCornerShape(12.dp))
+      .background(if (enabled) tint.copy(alpha = 0.12f) else AppTheme.colors.chatListDivider)
       .clickable(enabled = enabled, onClick = onClick)
-      .padding(vertical = 10.dp),
+      .padding(vertical = 12.dp),
     contentAlignment = Alignment.Center
   ) {
-    Text(
-      text,
-      fontSize = 15.sp,
-      fontWeight = FontWeight.Medium,
-      color = if (enabled) AppTheme.colors.onFab else AppTheme.colors.textSecondary
-    )
-  }
-}
-
-@Composable
-private fun BackupHint(text: String) {
-  Text(
-    text,
-    Modifier
-      .fillMaxWidth()
-      .padding(vertical = 12.dp),
-    fontSize = 13.sp,
-    color = AppTheme.colors.textSecondary,
-    textAlign = TextAlign.Center
-  )
-}
-
-@Composable
-private fun BackupDivider() {
-  Box(
-    Modifier
-      .fillMaxWidth()
-      .padding(vertical = 4.dp)
-      .height(1.dp)
-      .background(AppTheme.colors.chatListDivider)
-  )
-}
-
-@Composable
-private fun BackupFileRow(item: BackupItem, onClick: () -> Unit) {
-  Row(
-    Modifier
-      .fillMaxWidth()
-      .clickable(enabled = item.preview != null, onClick = onClick)
-      .padding(vertical = 10.dp),
-    verticalAlignment = Alignment.CenterVertically
-  ) {
-    Column(Modifier.weight(1f)) {
-      Text(
-        item.document.name,
-        fontSize = 14.sp,
-        color = AppTheme.colors.textPrimary,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Icon(
+        painterResource(icon),
+        contentDescription = null,
+        Modifier.size(18.dp),
+        tint = content
       )
-      Spacer(Modifier.height(2.dp))
-      val detail = item.preview?.let { preview ->
-        preview.exportedAt + " · " + preview.sections.joinToString("/") { it.label } + "\n" +
-            preview.counts.summary()
-      } ?: (item.error ?: "无法读取")
-      Text(detail, fontSize = 12.sp, color = AppTheme.colors.textSecondary)
+      Spacer(Modifier.width(8.dp))
+      Text(text, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = content)
     }
-    Spacer(Modifier.width(8.dp))
-    Text(
-      item.preview?.let { formatBytes(it.size) } ?: "",
-      fontSize = 12.sp,
-      color = AppTheme.colors.more
-    )
   }
-}
-
-private fun formatBytes(bytes: Long): String = when {
-  bytes >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", bytes / 1024.0 / 1024.0)
-  bytes >= 1024 -> String.format(Locale.US, "%.1f KB", bytes / 1024.0)
-  else -> "$bytes B"
 }
 
 /**
- * 恢复确认框:输入口令 → 选合并 / 覆盖 → 执行。
+ * 恢复确认框:选合并 / 覆盖 → 执行。
  *
- * 解密要跑 PBKDF2(20 万次迭代),放在 IO 线程,期间按钮显示「正在恢复...」并且不可再点。
+ * 备份是明文,没有口令要输;但「合并」会改动本机数据,所以仍要用户看一眼内容再点确认。
  */
 @Composable
 private fun RestoreDialog(
-  item: BackupItem,
+  item: PendingRestore,
   onDismiss: () -> Unit,
-  onRestored: (String) -> Unit
+  onDone: (title: String, body: String) -> Unit
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
-  var password by remember { mutableStateOf("") }
   var mode by remember { mutableStateOf(RestoreMode.Merge) }
   var busy by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
 
   val preview = item.preview
-  val ready = isBackupPassword(password) && preview != null && !busy
 
   fun startRestore() {
-    if (!ready) return
+    if (busy) return
     busy = true
     error = null
     scope.launch {
       val outcome = runCatching {
-        withContext(Dispatchers.IO) { BackupService.restore(context, item.document, password, mode) }
+        withContext(Dispatchers.IO) { BackupService.restore(context, item.document, mode) }
       }
       busy = false
       outcome.fold(
-        onSuccess = { result -> onRestored("${mode.label}完成\n${result.summary()}") },
+        onSuccess = { result -> onDone("${mode.label}完成", result.summary()) },
         onFailure = { e ->
           error = when (e) {
-            is BackupCryptoException -> e.message ?: "口令不正确"
             is BackupFormatException -> e.message ?: "备份文件不合法"
             else -> e.message ?: "恢复失败"
           }
@@ -538,24 +515,23 @@ private fun RestoreDialog(
 
   AlertDialog(
     onDismissRequest = { if (!busy) onDismiss() },
-    title = { Text("恢复备份", fontSize = 16.sp, color = AppTheme.colors.textPrimary) },
+    title = { Text("导入${preview.section.label}", fontSize = 16.sp, color = AppTheme.colors.textPrimary) },
     text = {
       Column {
-        if (preview != null) {
-          Text(
-            "${preview.exportedAt} · 应用版本 ${preview.appVersion.ifEmpty { "未知" }}",
-            fontSize = 12.sp,
-            color = AppTheme.colors.textSecondary
-          )
-          Spacer(Modifier.height(4.dp))
-          Text(preview.counts.summary(), fontSize = 13.sp, color = AppTheme.colors.textPrimary)
-          Spacer(Modifier.height(12.dp))
-        }
-        PasswordField(
-          label = "备份口令",
-          value = password,
-          onValueChange = { password = it; error = null }
+        Text(
+          preview.exportedAt,
+          fontSize = 12.sp,
+          color = AppTheme.colors.textSecondary
         )
+        Spacer(Modifier.height(2.dp))
+        // 版本单独一行:拼成「时间 · 应用版本 X」后整串查不到翻译表
+        Text(
+          "应用版本 ${preview.appVersion.ifEmpty { "未知" }}",
+          fontSize = 12.sp,
+          color = AppTheme.colors.textSecondary
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(preview.counts.summary(), fontSize = 13.sp, color = AppTheme.colors.textPrimary)
         Spacer(Modifier.height(12.dp))
         Text("恢复方式", fontSize = 13.sp, color = AppTheme.colors.textSecondary)
         Spacer(Modifier.height(6.dp))
@@ -584,9 +560,23 @@ private fun RestoreDialog(
         }
         Spacer(Modifier.height(6.dp))
         Text(
-          when (mode) {
-            RestoreMode.Merge -> "合并:保留本机已有数据,只补充备份里多出来的角色、会话消息与 KEY"
-            RestoreMode.Replace -> "覆盖:本机多出来的角色、会话与 KEY 会被清掉,只留备份里的内容"
+          when (preview.section) {
+            BackupSection.Characters -> when (mode) {
+              RestoreMode.Merge -> "合并:保留本机已有角色,补充备份里多出来的;同 id 的角色以备份为准"
+              RestoreMode.Replace -> "覆盖:本机多出来的角色会被清掉,只留备份里的角色卡"
+            }
+            BackupSection.Chats -> when (mode) {
+              RestoreMode.Merge -> "合并:保留本机会话,只补充备份里多出来的消息"
+              RestoreMode.Replace -> "覆盖:本机多出来的会话会被清掉,只留备份里的聊天记录"
+            }
+            BackupSection.Memories -> when (mode) {
+              RestoreMode.Merge -> "合并:只补本机还没有记忆的角色,已有记忆保持不动"
+              RestoreMode.Replace -> "覆盖:本机所有角色的记忆都会被替换成备份里的内容"
+            }
+            BackupSection.ApiKeys -> when (mode) {
+              RestoreMode.Merge -> "合并:保留本机配置,补充备份里多出来的;同 id 的配置以备份为准"
+              RestoreMode.Replace -> "覆盖:本机多出来的配置会被清掉,只留备份里的模型配置"
+            }
           },
           fontSize = 12.sp,
           color = AppTheme.colors.textSecondary
@@ -601,10 +591,10 @@ private fun RestoreDialog(
       Text(
         if (busy) "正在恢复..." else "恢复",
         Modifier
-          .clickable(enabled = ready) { startRestore() }
+          .clickable(enabled = !busy) { startRestore() }
           .padding(horizontal = 12.dp, vertical = 8.dp),
         fontSize = 15.sp,
-        color = if (ready) AppTheme.colors.iconCurrent else AppTheme.colors.more
+        color = if (busy) AppTheme.colors.more else AppTheme.colors.iconCurrent
       )
     },
     dismissButton = {

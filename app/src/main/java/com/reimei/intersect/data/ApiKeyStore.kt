@@ -50,7 +50,7 @@ object ApiKeyStore {
     return ApiKey(
       id = id,
       name = obj.optString("name"),
-      model = obj.optString("model"),
+      model = ModelNames.normalize(obj.optString("model")),
       url = obj.optString("url"),
       key = obj.optString("key"),
     )

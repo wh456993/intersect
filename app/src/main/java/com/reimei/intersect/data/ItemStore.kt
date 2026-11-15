@@ -36,6 +36,11 @@ object ItemStore {
     prefsOf(context).edit().putString(keyOf(friendId), array.toString()).apply()
   }
 
+  /** 删掉某个角色的整个物品目录(删除角色时用,不留孤儿条目)。 */
+  fun remove(context: Context, friendId: String) {
+    prefsOf(context).edit().remove(keyOf(friendId)).apply()
+  }
+
   private fun keyOf(friendId: String) = "$KEY_PREFIX$friendId"
 
   private fun prefsOf(context: Context) =

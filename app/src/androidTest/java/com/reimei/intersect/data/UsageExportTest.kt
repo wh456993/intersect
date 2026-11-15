@@ -39,7 +39,7 @@ class UsageExportTest {
       requests = 3,
       cost = 0.015,
       byKeyGroup = listOf(UsageGroup("key_1", 2000, 3, 800, 0.015)),
-      byModel = listOf(UsageGroup("deepseek-chat", 2000, 3, 800, 0.015)),
+      byModel = listOf(UsageGroup("deepseek-flash", 2000, 3, 800, 0.015)),
       byWindow = listOf(UsageGroup("self_local", 2000, 3, 800, 0.015)),
       trend = trend,
       streak = UsageStreak(current = 2, longest = 5),
@@ -129,8 +129,8 @@ class UsageExportTest {
     val pricing = build().getJSONObject("pricing")
     assertEquals(7.2, pricing.getDouble("usd_to_cny"), 1e-9)
     assertTrue(pricing.getString("unit").contains("1_000_000"))
-    val price = pricing.getJSONObject("models").getJSONObject("deepseek-chat")
-    assertEquals(Pricing.DEFAULT_PRICES.getValue("deepseek-chat").input, price.getDouble("input"), 1e-9)
+    val price = pricing.getJSONObject("models").getJSONObject("deepseek-flash")
+    assertEquals(Pricing.DEFAULT_PRICES.getValue("deepseek-flash").input, price.getDouble("input"), 1e-9)
   }
 
   @Test

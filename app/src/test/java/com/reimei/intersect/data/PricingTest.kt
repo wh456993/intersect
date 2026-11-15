@@ -69,8 +69,8 @@ class PricingTest {
 
   @Test
   fun `配置里改过的单价优先于内置参考价`() {
-    val config = PriceConfig().withPrice("deepseek-chat", ModelPrice(1.0, 0.1, 2.0))
-    assertEquals(1.0, config.priceOf("deepseek-chat").input, 0.0)
+    val config = PriceConfig().withPrice("deepseek-flash", ModelPrice(1.0, 0.1, 2.0))
+    assertEquals(1.0, config.priceOf("deepseek-flash").input, 0.0)
     // 没改过的模型仍走内置参考价
     assertEquals(Pricing.DEFAULT_PRICES.getValue("qwen-plus").input, config.priceOf("qwen-plus").input, 0.0)
     // 完全不认识的模型单价为 0

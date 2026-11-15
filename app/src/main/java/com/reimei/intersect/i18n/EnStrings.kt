@@ -24,9 +24,38 @@ internal object EnStrings {
     "模型" to "Model",
     "备份失败" to "Backup failed",
     "请求体" to "Request body",
+    // ---- 导演模式面板 ----
+    "导演模式" to "Director mode",
+    "时间" to "Time",
+    "地点" to "Place",
+    "天气" to "Weather",
+    "未设定" to "Not set",
+    "场景没有变化,没有写时钟" to "Nothing changed; the clock was not updated",
+    "时间格式看不懂" to "Could not read that time",
+    "时间要写成 2026.5.6 8:22 或 第三纪 +302.5.6 8:22" to
+      "Write the time as 2026.5.6 8:22 or Era III +302.5.6 8:22",
+    "地点太长" to "Place is too long",
+    "天气太长" to "Weather is too long",
+    "AI 无权写入时钟:只能给建议,执行必须由导演发起" to
+      "the AI may not write to the clock: it can only suggest, the director must execute",
+    "已更新场景:" to "Scene updated:",
+    // ---- 基准时间(创建角色时的开局时刻,程序设定的) ----
+    "基准时间(程序设定的)" to "Base time (set by the program)",
+    "基准时间" to "Base time",
+    "格式不对" to "Wrong format",
+    "看不懂这个时间:年份可带正负号,纪年名不能含数字" to
+      "Could not read that time: the year may carry a sign, and the era name may not contain digits",
+    "正负号 + 纪年 + 年.月.日 时:分,如 第三纪 +302.5.6 8:22" to
+      "Sign + era + year.month.day hour:minute, e.g. Era III +302.5.6 8:22",
+    "基准时间是程序设定的开局时刻;改它只改当前的时刻,以前的时间记录不会被动。清空就是回到出厂基准 2026.1.1 8:00。" to
+      "The base time is the starting point set by the program. Editing it only changes the current " +
+      "moment; earlier time records are left alone. Clearing the field goes back to the factory " +
+      "default of 2026.1.1 8:00.",
     "输出" to "Output",
     "请求失败(原因未知)" to "Request failed (reason unknown)",
     "角色信息" to "Character info",
+    "角色代入" to "Avatar-based Role-Play",
+    "本体代入" to "Self-insert Role-Play",
     "数据备份" to "Backup",
     "设置" to "Settings",
     "后台常驻" to "Keep running in background",
@@ -38,8 +67,6 @@ internal object EnStrings {
     "选择模型" to "Choose a model",
     "无法读取" to "Cannot read",
     "未知错误" to "Unknown error",
-    "备份口令" to "Backup passcode",
-    "口令不正确" to "Incorrect passcode",
     "这个人很懒,什么都没写" to "Nothing here yet",
     "角色身份" to "Character identity",
     "聊天信息" to "Chat info",
@@ -79,11 +106,7 @@ internal object EnStrings {
       "Do not put ? or # parameters in the endpoint; enter it up to the /v1 level only",
     "该地址" to "That address",
 
-    // ---- 备份 / 加密 ----
-    "备份文件的加密参数不完整" to "The backup file has incomplete encryption parameters",
-    "备份文件内容为空" to "The backup file is empty",
-    "口令不正确,或文件内容已被改动" to "Incorrect passcode, or the file has been modified",
-    "备份文件的加密参数非法" to "The backup file has invalid encryption parameters",
+    // ---- 备份(明文 .json,不加密) ----
     "无法写入所选位置" to "Cannot write to the selected location",
     "写入后文件仍是空的" to "The file is still empty after writing",
     "无法读取所选文件" to "Cannot read the selected file",
@@ -95,16 +118,12 @@ internal object EnStrings {
     "备份文件缺少版本号" to "The backup file has no version number",
     "备份文件由更新版本的应用生成,请先升级应用" to
       "This backup was created by a newer version of the app; please update the app first",
-    "备份文件没有声明内容范围" to "The backup file does not declare what it contains",
-    "备份文件里没有任何可取的内容" to "The backup file contains nothing to restore",
-    "备份文件缺少加密信息" to "The backup file has no encryption info",
-    "备份文件的内容为空" to "The backup file content is empty",
+    "这是旧版 .ibk 备份,新版不再支持;请用旧版本应用恢复后重新导出 .json" to
+      "This is an old .ibk backup, which is no longer supported; restore it with the previous " +
+      "version of the app and export a .json again",
+    "备份内容与文件头不一致" to "The backup content does not match its header",
     "未知时间" to "Unknown time",
-    "备份内容无法解析" to "Cannot parse the backup content",
-    "备份内容格式不匹配" to "The backup content format does not match",
-    "备份文件里没有任何可恢复的内容" to "There is nothing to restore in the backup file",
     "没有可恢复的内容" to "Nothing to restore",
-    "至少选择一项要备份的内容" to "Select at least one item to back up",
     "Base64 长度不合法" to "Invalid Base64 length",
 
     // ---- 对话 / 请求 ----
@@ -128,6 +147,14 @@ internal object EnStrings {
     "API KEY 管理" to "API KEYs",
     "Token统计" to "Token usage",
     "支持开发者" to "Support the developer",
+    // ---- 支持开发者页 ----
+    "作者头像" to "Author avatar",
+    "开源仓库" to "GitHub repository",
+    "QQ 邮箱" to "QQ mail",
+    "抖音" to "Douyin",
+    "intersect 作者 · 欢迎来仓库看看" to "Author of intersect · drop by the repository",
+    "点击任一项会在浏览器或对应的应用里打开" to
+      "Tap any item to open it in your browser or the matching app",
     "隐私政策" to "Privacy Policy & Licenses",
     "撤销授权" to "Revoke consent",
     "清空本机记录的同意状态并退出应用,不会删除任何数据;下次打开需重新同意本协议" to
@@ -187,37 +214,60 @@ internal object EnStrings {
     "显示" to "Show",
     "拉取模型" to "Fetch models",
     "使用填写的模型" to "Use the entered model",
-    "备份未完成" to "Backup not finished",
-    "已经选好位置,但待写入的备份找不到了。\n\n请重新点一次「开始备份」。" to
-      "A location was chosen, but the pending backup is gone.\n\nPlease tap 「Start backup」 again.",
-    "备份完成" to "Backup complete",
+    "导出未完成" to "Export not finished",
+    "已经选好位置,但待写入的备份找不到了。\n\n请重新点一次「导出」。" to
+      "A location was chosen, but the pending backup is gone.\n\nPlease tap 「Export」 again.",
+    "导出完成" to "Export complete",
     "无法打开该文件" to "Cannot open that file",
     "它可能不是本应用的备份文件" to "It is probably not a backup file of this app",
     "打不开文件选择器" to "Cannot open the file picker",
-    "导出备份" to "Export backup",
-    "确认口令" to "Confirm passcode",
-    "两次输入不一致" to "The two entries do not match",
-    "再输入一次" to "Enter it again",
-    "正在备份..." to "Backing up...",
-    "开始备份" to "Start backup",
-    "从备份恢复" to "Restore from backup",
-    "选择备份文件" to "Choose backup file",
-    "正在扫描本机旧备份..." to "Scanning this device for old backups...",
-    "本机旧目录里没有备份文件" to "No backup file in the old folder on this device",
-    "重新扫描本机旧备份" to "Rescan old backups on this device",
+    "无法打开文件选择器" to "Cannot open the file picker",
+    "导出" to "Export",
+    "导入" to "Import",
+    "删除全部" to "Delete all",
+    "正在导出..." to "Exporting...",
+    "导出失败" to "Export failed",
     "好" to "OK",
     "恢复完成" to "Restore complete",
+    "合并完成" to "Merge complete",
+    "覆盖完成" to "Replace complete",
     "备份文件不合法" to "Invalid backup file",
     "恢复失败" to "Restore failed",
-    "恢复备份" to "Restore backup",
     "恢复方式" to "Restore mode",
-    "合并:保留本机已有数据,只补充备份里多出来的角色、会话消息与 KEY" to
-      "Merge: keep the existing data on this device and only add characters, messages and KEYs found in the backup",
-    "覆盖:本机多出来的角色、会话与 KEY 会被清掉,只留备份里的内容" to
-      "Replace: characters, chats and KEYs that exist only on this device are removed, leaving only the backup content",
     "正在恢复..." to "Restoring...",
     "恢复" to "Restore",
-    "事件线" to "Timeline",
+    "已删除" to "Deleted",
+    "删除全部聊天记录" to "Delete all chat history",
+    "导出时由你选择保存位置,文件是可直接打开的 .json。" to
+      "You choose where to save it; the file is a .json you can open directly.",
+    "备份文件是明文 .json,不加密,导出时由你选择保存位置。" to
+      "Backup files are plain .json and are not encrypted. You choose where to save them.",
+    "角色卡" to "Characters",
+    "跨格式备份、导出与恢复" to "Cross-format backup, export and restore",
+    "备份与恢复角色卡配置" to "Back up and restore character profiles",
+    "跨配置备份与恢复,保持思维链一致" to
+      "Back up and restore across setups, keeping the reasoning chain consistent",
+    "模型配置" to "Model settings",
+    "备份与恢复所有模型设置,包括 API 密钥和参数" to
+      "Back up and restore every model setting, including the API key and parameters",
+    "合并:保留本机已有角色,补充备份里多出来的;同 id 的角色以备份为准" to
+      "Merge: keep the characters on this device and add the extra ones from the backup; " +
+      "a character with the same id follows the backup",
+    "覆盖:本机多出来的角色会被清掉,只留备份里的角色卡" to
+      "Replace: characters that exist only on this device are removed, leaving only the backup",
+    "合并:保留本机会话,只补充备份里多出来的消息" to
+      "Merge: keep the chats on this device and only add the messages found in the backup",
+    "覆盖:本机多出来的会话会被清掉,只留备份里的聊天记录" to
+      "Replace: chats that exist only on this device are removed, leaving only the backup",
+    "合并:只补本机还没有记忆的角色,已有记忆保持不动" to
+      "Merge: only fill in characters that have no memory on this device; existing memory is kept",
+    "覆盖:本机所有角色的记忆都会被替换成备份里的内容" to
+      "Replace: every character's memory on this device is replaced by the backup",
+    "合并:保留本机配置,补充备份里多出来的;同 id 的配置以备份为准" to
+      "Merge: keep the settings on this device and add the extra ones from the backup; " +
+      "a setting with the same id follows the backup",
+    "覆盖:本机多出来的配置会被清掉,只留备份里的模型配置" to
+      "Replace: settings that exist only on this device are removed, leaving only the backup",
     "记忆库" to "Memory",
     "即时记忆 / 时间线索引 / 长期记忆" to "Immediate memory / Timeline index / Long-term memory",
     "即时记忆层" to "Immediate memory",
@@ -228,9 +278,10 @@ internal object EnStrings {
     "把反复出现的人、地点与约定沉淀成长期设定,不必每次都从总结里推断。" to
       "Distills recurring people, places and promises into long-term settings instead of inferring them from summaries.",
     "即将上线" to "Coming soon",
-    "总结目标长度" to "Summary length",
-    "每 20 轮对话自动总结一次;数值越大保留的细节越多,注入请求体时占的上下文也越多。" to
-      "Summarizes automatically every 20 rounds; a larger value keeps more detail and takes more context in each request.",
+    "总结长度上限" to "Max summary length",
+    "每 20 轮对话自动总结一次;这是长度上限,实际长度在 250 token 到该值之间按内容浮动。" to
+      "Summarizes automatically every 20 rounds; this is the length cap, and the actual length lands between " +
+        "250 tokens and the cap depending on the content.",
     "重试" to "Retry",
     "还没有即时记忆" to "No immediate memory yet",
     "正在生成第一条总结..." to "Generating the first summary...",
@@ -264,7 +315,7 @@ internal object EnStrings {
     "注入格式:system(角色卡 + 记忆规则) → 未总结原文 → 一条独立的记忆块 → 当前输入。" to
       "Injection order: system (character card + memory rules) → raw unsummarized history → a separate memory block → current input.",
     "还没有可以总结的轮次" to "No rounds to summarize yet",
-    "地图管理器" to "Map manager",
+    "空间管理器" to "Space manager",
     "全选" to "Select all",
     "取消全选" to "Deselect all",
     "回滚" to "Roll back",
@@ -285,6 +336,32 @@ internal object EnStrings {
     "内置模板" to "Built-in template",
     "物品管理器" to "Inventory",
     "时间管理器" to "Time manager",
+    "世界观" to "Worldview",
+    "背景" to "Background",
+    "法则体系" to "Laws",
+    "势力分布" to "Factions",
+    "经济架构" to "Economy",
+    "历史与重大事件" to "History & major events",
+    "还没填写 · 法则体系 / 势力分布 / 经济架构 / 历史与重大事件" to
+      "Not filled in yet · Laws / Factions / Economy / History & major events",
+    "可留空,比如:这个世界没有神,一切力量都要以记忆为代价" to
+      "Optional, e.g. there are no gods here; every power has to be paid for with memory",
+    "可留空,比如:北境军府与商会联盟对峙,教团在两方之间卖消息" to
+      "Optional, e.g. the northern garrison faces off against the merchant league, while the order sells word between them",
+    "可留空,比如:以盐为硬通货,长途贸易全走河运,税按船算" to
+      "Optional, e.g. salt is hard currency, long-distance trade goes by river, taxes are counted per boat",
+    "可留空,比如:十七年前的断河之战之后,旧王族再没出现过" to
+      "Optional, e.g. the old royal line has not been seen since the Battle of the Broken River seventeen years ago",
+    "可留空,比如:出身铁匠铺,十六岁进城当学徒,如今欠着一笔还不上的债" to
+      "Optional, e.g. raised in a smithy, apprenticed in the city at sixteen, now carrying a debt that cannot be repaid",
+    "创建后可用" to "Available once created",
+    "点选后进入该模式的功能页,完成后按最后进入的模式创建" to
+      "Tap a mode to open its feature page; the last one you enter is what gets created",
+    "扮演模式" to "Role-playing mode",
+    "填写这个角色的来历与处境(可留空)" to "Where this character comes from and where they stand (optional)",
+    "这四项只在本机记录,不会发给模型;你的每一次对话仍只带名称、身份与性格。" to
+      "These four fields stay on this device and are not sent to the model; each request still carries only name, identity and personality.",
+    "只在本机记录,不会发给模型。" to "Kept on this device only; not sent to the model.",
     "名称、性格、身份都已填写" to "Name, personality and identity are all filled in",
     "开发中" to "In development",
     "不能为空" to "Cannot be empty",
@@ -415,15 +492,39 @@ internal object EnStrings {
       "This is the exact payload for this round. Edit it word by word if you like: tap Send again to send it, " +
       "or Cancel to discard the whole round (the original text goes back to the input box). " +
       "Edits are not written back to the Request body configuration.",
-    "角色设定在「角色」页填写,发送时会作为一条 system 消息插到最前面;这里只放请求体本身。" to
+    "角色设定在「角色」页填写,发送时会作为一条 system 消息插到最前面;这里只放请求体本身。" +
+      "模型与两个开关也是改这份请求体,改完点下面的「保存」才落盘。" to
       "The character prompt is set on the Character page and is inserted as the first system message when sending; " +
-      "only the payload itself goes here.",
+      "only the payload itself goes here. The model and the two switches also edit this payload — " +
+      "tap Save below to keep the changes.",
+    // ---- 开发者控制台的请求配置(模型 / 深度思考 / 联网搜索) ----
+    "深度思考" to "Deep thinking",
+    "联网搜索" to "Web search",
+    "{0}:开" to "{0}: On",
+    "{0}:关" to "{0}: Off",
+    "{0}:不支持" to "{0}: N/A",
+    "写进请求体:{0}" to "Written into the request body: {0}",
+    "打开时模型切到 {0}" to "Switches the model to {0} when on",
+    "该服务商未内置这个参数,可以在请求体里手写" to
+      "This provider has no built-in parameter for it; write it in the request body instead",
     "还没写内容,现在用的是内置模板;写一段再点保存。" to
       "Nothing written yet, so the built-in template is used; write something and tap Save.",
     "这条消息已经不在了。" to "This message is no longer here.",
     "本轮总结期间删过消息或回滚过,结果已作废" to
       "Messages were deleted or rolled back during this summary, so the result was discarded",
   )
+  /**
+   * 一行场景变更:`<旧值变更新值>`。两侧是日期/地点/天气原文(用户内容,不翻),
+   * 只把中间的「变更」换成箭头。声明在 [patterns] 之前:规则表初始化时就要用它。
+   */
+  private val SCENE_CHANGE = Regex("<(.+?)变更(.+?)>")
+
+  /** 场景回显正文:逐行处理变更行,其余行按整句表反查。 */
+  private fun sceneBody(zh: String): String = zh.lines().joinToString("\n") { line ->
+    val m = SCENE_CHANGE.matchEntire(line)
+    if (m != null) "<${m.g(1)} → ${m.g(2)}>" else inner(line)
+  }
+
   /**
    * 由变量拼出来的句子。
    *
@@ -455,14 +556,44 @@ internal object EnStrings {
       "No response within ${m.g(1)}s: either the model is slow, or the address/network is unreachable"
     },
 
-    // 加密 / 备份
-    Regex("本机不支持 (.+)") to { m -> "This device does not support ${m.g(1)}" },
-    Regex("加密失败: (.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Encryption failed: ${m.g(1)}" },
-    Regex("解密失败: (.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Decryption failed: ${m.g(1)}" },
-    Regex("本机不支持密钥派生算法 (.+)") to { m -> "This device does not support the key derivation ${m.g(1)}" },
+    // 备份(明文 .json)
     Regex("只写入了 (.+?) 字节") to { m -> "Only ${m.g(1)} bytes were written" },
-    Regex("(.+?) 个角色 · (.+?) 个会话\\((.+?) 条消息\\) · (.+?) 个 API KEY") to { m ->
-      "${m.g(1)} characters · ${m.g(2)} chats (${m.g(3)} messages) · ${m.g(4)} API KEYs"
+    Regex("(.+?) 个角色") to { m -> "${m.g(1)} characters" },
+    Regex("(.+?) 个会话\\((.+?) 条消息\\)") to { m -> "${m.g(1)} chats (${m.g(2)} messages)" },
+    Regex("(.+?) 条记忆") to { m -> "${m.g(1)} memories" },
+    Regex("(.+?) 个模型配置") to { m -> "${m.g(1)} model settings" },
+    Regex("当前共有 (.+?) 条聊天记录\\(共 (.+?) 条消息\\)。") to { m ->
+      "There are ${m.g(1)} chats (${m.g(2)} messages) on this device."
+    },
+    Regex("当前共有 (.+?) 个角色卡。") to { m ->
+      "There are ${m.g(1)} characters on this device."
+    },
+    Regex("当前共有 (.+?) 条记忆\\((.+?) 个角色\\)。") to { m ->
+      "There are ${m.g(1)} memories (${m.g(2)} characters) on this device."
+    },
+    Regex("当前共有 (.+?) 个模型配置。") to { m ->
+      "There are ${m.g(1)} model settings on this device."
+    },
+    Regex("已清空 (.+?) 个会话的全部聊天记录。") to { m ->
+      "Cleared all chat history of ${m.g(1)} chats."
+    },
+    Regex(
+      "本机的 (.+?) 个会话及其中的 (.+?) 条消息会全部删除,无法恢复。\\n\\n角色卡、记忆库与模型配置不受影响。",
+      RegexOption.DOT_MATCHES_ALL
+    ) to { m ->
+      "All ${m.g(1)} chats and their ${m.g(2)} messages will be deleted and cannot be recovered." +
+        "\n\nCharacters, memory and model settings are not affected."
+    },
+    Regex("导入(聊天记录|角色卡|记忆库|模型配置)") to { m ->
+      "Import " + when (m.g(1)) {
+        "聊天记录" -> "chat history"
+        "角色卡" -> "characters"
+        "记忆库" -> "memory"
+        else -> "model settings"
+      }
+    },
+    Regex("应用版本 (.+)") to { m ->
+      "App version " + if (m.g(1) == "未知") "unknown" else m.g(1)
     },
     Regex("备份文件的 (.+?) 缺失") to { m -> "The backup file is missing the ${m.g(1)} field" },
     Regex("备份文件的 (.+?) 不合法") to { m -> "The backup file has an invalid ${m.g(1)} field" },
@@ -470,12 +601,14 @@ internal object EnStrings {
     Regex("会话 \\+(.+?) / 补充 (.+?)\\((.+?) 条消息\\)") to { m ->
       "Chats +${m.g(1)} / merged ${m.g(2)} (${m.g(3)} messages)"
     },
-    Regex("API KEY \\+(.+?) / 更新 (.+)") to { m -> "API KEY +${m.g(1)} / updated ${m.g(2)}" },
+    Regex("记忆 \\+(.+)") to { m -> "Memories +${m.g(1)}" },
+    Regex("模型配置 \\+(.+?) / 更新 (.+)") to { m -> "Model settings +${m.g(1)} / updated ${m.g(2)}" },
     Regex("Base64 含非法字符: (.*)", RegexOption.DOT_MATCHES_ALL) to { m ->
       "Base64 contains an illegal character: ${m.g(1)}"
     },
-    Regex("(.+?)\n\n已保存到你选择的位置:\n(.+?)\n\n?", RegexOption.DOT_MATCHES_ALL) to { m ->
-      "${m.g(1)}\n\nSaved to the location you chose:\n${m.g(2)}"
+    // 导出完成的「保存到哪」是独立一段,不和规模信息拼成一整串(拼了查不到翻译)
+    Regex("已保存到你选择的位置:\n(.+)", RegexOption.DOT_MATCHES_ALL) to { m ->
+      "Saved to the location you chose:\n${m.g(1)}"
     },
     Regex("(.+?)完成\n(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "${m.g(1)} complete\n${m.g(2)}" },
 
@@ -495,6 +628,9 @@ internal object EnStrings {
     Regex("至少 (.+?) 个字符") to { m -> "At least ${m.g(1)} characters" },
     Regex("(.+?) 个字符以内") to { m -> "Up to ${m.g(1)} characters" },
     Regex("名称、性格、身份 · 已填写 (.+?) 项") to { m -> "Name, personality, identity · ${m.g(1)} filled in" },
+    Regex("已填 (.+?)/4 · 法则体系 / 势力分布 / 经济架构 / 历史与重大事件") to { m ->
+      "Filled ${m.g(1)}/4 · Laws / Factions / Economy / History & major events"
+    },
     Regex("找到 (.+?) 条记录") to { m -> "${m.g(1)} records found" },
     Regex("没有找到包含「(.*?)」的记录") to { m -> "No records containing “${m.g(1)}”" },
     Regex("(.+?)是系统内置角色,不能删除") to { m -> "${m.g(1)} is a built-in character and cannot be deleted" },
@@ -511,21 +647,23 @@ internal object EnStrings {
           "This cannot be undone."
       }
     },
-    // 记忆库:总结进行中 / 结果 / 状态条与说明(轮数、目标长度都由常量拼出来)
+    // 记忆库:总结进行中 / 结果 / 状态条与说明(轮数、长度上限都由常量拼出来)
     Regex("正在总结前 (.+?) 轮对话\\.\\.\\.") to { m -> "Summarizing the last ${m.g(1)} rounds..." },
     Regex("上次总结失败:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Last summary failed: ${m.g(1)}" },
     Regex("总结失败:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Summary failed: ${m.g(1)}" },
     Regex("总结完成 · 实际 (.+?) token") to { m -> "Summary done · ${m.g(1)} tokens" },
-    Regex("目标 (.+?) token · 实际 (.+?) token") to { m -> "Target ${m.g(1)} tokens · actual ${m.g(2)} tokens" },
-    Regex("每 (.+?) 轮对话自动总结一次;数值越大保留的细节越多,注入请求体时占的上下文也越多。") to { m ->
-      "Summarizes every ${m.g(1)} rounds; a larger value keeps more detail but takes up more context in the request."
+    Regex("上限 (.+?) token · 实际 (.+?) token") to { m -> "Cap ${m.g(1)} tokens · actual ${m.g(2)} tokens" },
+    Regex("最大 (.+?) token") to { m -> "Max ${m.g(1)} tokens" },
+    Regex("每 (.+?) 轮对话自动总结一次;这是长度上限,实际长度在 (.+?) token 到该值之间按内容浮动。") to { m ->
+      "Summarizes every ${m.g(1)} rounds; this is the length cap, and the actual length lands between " +
+        "${m.g(2)} tokens and the cap depending on the content."
     },
     Regex("每聊完 (.+?) 轮会自动总结一次,总结之后这些轮的原文不再发给模型,只发总结。") to { m ->
       "After every ${m.g(1)} rounds a summary is generated automatically; from then on those raw rounds are no " +
         "longer sent to the model, only the summary."
     },
-    Regex("占位符:(.+?) 目标 token、(.+?) 目标下限\\(约 70%\\)。写成空文本会退回内置模板。") to { m ->
-      "Placeholders: ${m.g(1)} for the target tokens, ${m.g(2)} for the lower bound (about 70%). " +
+    Regex("占位符:(.+?) 长度上限、(.+?) 长度下限\\(固定 (.+?)\\)。写成空文本会退回内置模板。") to { m ->
+      "Placeholders: ${m.g(1)} for the length cap, ${m.g(2)} for the lower bound (fixed at ${m.g(3)}). " +
         "An empty text falls back to the built-in template."
     },
     Regex("已登记 (.+?) 件 · 对话提到名称时自动补充简介") to { m ->
@@ -566,5 +704,22 @@ internal object EnStrings {
     Regex("这段时间里没有(.+?)维度的流水") to { m -> "No usage for the ${inner(m.g(1))} dimension in this range" },
     Regex("(.+?):全部(.+?)") to { m -> "${inner(m.g(1))}: all ${inner(m.g(2))}" },
     Regex("全部(.+)") to { m -> "All ${inner(m.g(1))}" },
+    // 导演模式面板与会话回显。顺序要紧:「最多 N 个字,这次没有写时钟」两条具体规则必须排在
+    // 通用收尾「...,这次没有写时钟」前面,否则内层那句带变量的中文查不到(inner 只查整句表)。
+    Regex("地点最多 (.+?) 个字,这次没有写时钟") to { m ->
+      "Place is at most ${m.g(1)} characters; the clock was not updated"
+    },
+    Regex("天气最多 (.+?) 个字,这次没有写时钟") to { m ->
+      "Weather is at most ${m.g(1)} characters; the clock was not updated"
+    },
+    Regex("(.+?),这次没有写时钟") to { m -> "${inner(m.g(1))}; the clock was not updated" },
+    Regex("已更新场景:\n(.*)", RegexOption.DOT_MATCHES_ALL) to { m ->
+      "Scene updated:\n${sceneBody(m.g(1))}"
+    },
+    SCENE_CHANGE to { m -> "<${m.g(1)} → ${m.g(2)}>" },
+    Regex("基准时间 · (.+)") to { m -> "Base time · ${m.g(1)}" },
+    Regex("角色信息 · (.+)") to { m -> "Character info · ${inner(m.g(1))}" },
+    Regex("没有改场景:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Scene not changed: ${inner(m.g(1))}" },
+    Regex("没有改时钟:(.*)", RegexOption.DOT_MATCHES_ALL) to { m -> "Clock not changed: ${inner(m.g(1))}" },
   )
 }

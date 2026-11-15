@@ -36,7 +36,7 @@ class UsageSeedForScreenshot {
         val cached = prompt * 0.82
         val completion = (320 + index * 12) * weight
         val cachedInt = cached.toInt()
-        val model = if (index % 3 == 0) "qwen-plus" else "deepseek-chat"
+        val model = if (index % 3 == 0) "qwen-plus" else "deepseek-flash"
         db.execSQL(
           "INSERT INTO api_call_logs (timestamp, key_group_id, model_name, chat_window_id, " +
             "prompt_tokens, completion_tokens, cached_tokens, total_tokens, cost) " +
