@@ -1,0 +1,104 @@
+intersect
+Copyright 2026 LuoMing
+
+本产品包含由第三方开发的软件组件。以下为这些组件及其许可条款的清单,
+分发本产品的二进制包(APK)时请一并保留本文件。
+
+====================================================================
+本项目自身
+====================================================================
+
+intersect 源代码以 Apache License 2.0 发布,全文见仓库根目录的 LICENSE。
+项目名称、应用图标与启动图标等标识性素材不在该协议授权范围内。
+
+====================================================================
+第三方组件
+====================================================================
+
+--- Apache License 2.0 -------------------------------------------------
+
+  AndroidX / Jetpack Compose 1.5.4
+    androidx.compose.foundation, androidx.compose.material, androidx.compose.ui,
+    androidx.compose.animation, androidx.compose.ui:ui-util
+    声明式界面。
+    https://developer.android.com/jetpack/androidx/releases/compose
+
+  AndroidX Core-KTX 1.10.0, AppCompat 1.6.1, ExifInterface 1.3.2
+    基础扩展、兼容层、头像图片方向校正。
+    https://developer.android.com/jetpack/androidx
+
+  AndroidX Activity / Activity-Compose 1.8.0
+    界面宿主与 Compose 接入。
+    https://developer.android.com/jetpack/androidx/releases/activity
+
+  AndroidX Lifecycle (runtime / viewmodel / viewmodel-compose) 2.6.1
+    状态与生命周期管理。
+    https://developer.android.com/jetpack/androidx/releases/lifecycle
+
+  AndroidX Room (runtime / ktx / compiler) 2.6.1
+    记忆库与本地向量表的数据库层;注解处理在编译期经 KSP 完成。
+    https://developer.android.com/jetpack/androidx/releases/room
+
+  AndroidX WorkManager (runtime-ktx) 2.8.1
+    在充电且息屏的约束下后台回填检索索引。
+    https://developer.android.com/jetpack/androidx/releases/work
+
+  Material Components for Android 1.13.0
+    主题与控件基础。
+    https://github.com/material-components/material-components-android
+
+  Kotlin Symbol Processing (KSP)
+    Room 的编译期代码生成。
+    https://github.com/google/ksp
+
+  Kotlin 标准库与 kotlinx.coroutines
+    语言运行时与协程(随上述组件引入)。
+    https://github.com/JetBrains/kotlin, https://github.com/Kotlin/kotlinx.coroutines
+
+--- MIT License --------------------------------------------------------
+
+  Microsoft ONNX Runtime Android 1.17.1
+    在设备本地执行句向量模型推理(纯离线,无网络请求)。
+    https://github.com/microsoft/onnxruntime
+    Copyright (c) Microsoft Corporation. All rights reserved.
+
+  bge-micro-v2 句向量模型(INT8 量化权重)
+    本地语义检索所用的文本向量化模型,权重随 APK 打包,
+    assets/models/bge-micro-v2-int8.onnx。
+    https://huggingface.co/Xenova/bge-micro-v2
+    源自 BAAI BGE (BAAI General Embedding) 系列模型权重。
+
+====================================================================
+网络与数据说明
+====================================================================
+
+网络通信由 Android 平台自带的 HttpURLConnection 与 org.json 实现,
+未引入 OkHttp、Retrofit 等第三方网络库。
+语义检索的分词、推理与向量计算全部在本机完成,不上传任何对话文本。
+
+====================================================================
+许可全文
+====================================================================
+
+Apache License 2.0: 见仓库根目录 LICENSE 文件,或
+  http://www.apache.org/licenses/LICENSE-2.0
+
+MIT License 条文:
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.

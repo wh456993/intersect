@@ -87,7 +87,7 @@ private val ZH_DOC = AgreementDoc(
   disclaimer = DISCLAIMER_ZH,
   meta = listOf(
     "生效日期:2026 年 11 月 7 日",
-    "最后更新:2026 年 11 月 7 日",
+    "最后更新:2026 年 11 月 15 日",
     "开发者:LuoMing(GitHub:https://github.com/wh456993)",
     "适用应用:intersect(Android 包名 com.reimei.intersect)"
   ),
@@ -168,16 +168,21 @@ private val ZH_DOC = AgreementDoc(
 
     DocBlock(
       "第三方开源组件致谢", listOf(
-        "本应用使用的第三方组件均以 Apache License 2.0 授权,特此致谢:",
-        "Jetpack Compose(foundation / material / ui / animation)1.5.4:声明式界面。",
-        "AndroidX Core-KTX 1.10.0:基础扩展。",
-        "AndroidX Activity / Activity-Compose 1.8.0:界面宿主与 Compose 接入。",
-        "AndroidX AppCompat 1.6.1:兼容层。",
-        "AndroidX Lifecycle(runtime / viewmodel)2.6.1:状态与生命周期管理。",
-        "Material Components 1.13.0:主题与控件基础。",
-        "AndroidX ExifInterface 1.3.2:头像图片方向校正。",
+        "本应用使用的第三方组件以 Apache License 2.0 与 MIT License 授权,特此致谢。仓库根目录的 NOTICE 文件列有同一份清单。",
+        "Jetpack Compose(foundation / material / ui / animation)1.5.4(Apache License 2.0):声明式界面。",
+        "AndroidX Core-KTX 1.10.0(Apache License 2.0):基础扩展。",
+        "AndroidX Activity / Activity-Compose 1.8.0(Apache License 2.0):界面宿主与 Compose 接入。",
+        "AndroidX AppCompat 1.6.1(Apache License 2.0):兼容层。",
+        "AndroidX Lifecycle(runtime / viewmodel)2.6.1(Apache License 2.0):状态与生命周期管理。",
+        "Material Components 1.13.0(Apache License 2.0):主题与控件基础。",
+        "AndroidX ExifInterface 1.3.2(Apache License 2.0):头像图片方向校正。",
+        "AndroidX Room(runtime / ktx / compiler)2.6.1(Apache License 2.0):记忆库与本地向量表的数据库层,注解处理在编译期经 KSP 完成,不引入 kapt。",
+        "AndroidX WorkManager(runtime-ktx)2.8.1(Apache License 2.0):在充电且息屏的约束下后台回填检索索引。",
+        "Kotlin Symbol Processing(KSP)(Apache License 2.0):Room 的编译期代码生成。",
+        "Microsoft ONNX Runtime Android 1.17.1(MIT License):在设备本地执行句向量模型推理。",
+        "bge-micro-v2 句向量模型(INT8 量化,MIT License,来源于 Hugging Face 的 Xenova/bge-micro-v2):本地语义检索的文本向量化模型,权重随 APK 打包,不联网、不上传任何文本。",
         "Kotlin 标准库与 kotlinx.coroutines(随上述组件引入):语言运行时与协程。",
-        "说明:网络通信由 Android 平台自带的 HttpURLConnection 与 org.json 实现,未引入 OkHttp、Retrofit 等第三方网络库;项目亦未使用任何第三方 UI 框架、图片加载库或数据持久化框架。分发 APK 时请保留上述组件的许可声明。"
+        "说明:网络通信由 Android 平台自带的 HttpURLConnection 与 org.json 实现,未引入 OkHttp、Retrofit 等第三方网络库;未使用任何第三方 UI 框架或图片加载库;语义检索的向量计算全部在本机完成。分发 APK 时请保留上述组件的许可声明与 NOTICE 文件。"
       )
     ),
 
@@ -220,7 +225,7 @@ private val EN_DOC = AgreementDoc(
   disclaimer = DISCLAIMER_EN,
   meta = listOf(
     "Effective date: November 7, 2026",
-    "Last updated: November 7, 2026",
+    "Last updated: November 15, 2026",
     "Developer: LuoMing (GitHub: https://github.com/wh456993)",
     "Applies to: intersect (Android package com.reimei.intersect)"
   ),
@@ -301,16 +306,21 @@ private val EN_DOC = AgreementDoc(
 
     DocBlock(
       "Third-Party Open-Source Components", listOf(
-        "The third-party components used by the App are all licensed under the Apache License 2.0. Our thanks to:",
-        "Jetpack Compose (foundation / material / ui / animation) 1.5.4: declarative UI.",
-        "AndroidX Core-KTX 1.10.0: foundational extensions.",
-        "AndroidX Activity / Activity-Compose 1.8.0: UI host and Compose integration.",
-        "AndroidX AppCompat 1.6.1: compatibility layer.",
-        "AndroidX Lifecycle (runtime / viewmodel) 2.6.1: state and lifecycle management.",
-        "Material Components 1.13.0: theme and widget foundation.",
-        "AndroidX ExifInterface 1.3.2: avatar image orientation correction.",
+        "The third-party components used by the App are licensed under the Apache License 2.0 and the MIT License. Our thanks to (the NOTICE file in the repository root lists the same set):",
+        "Jetpack Compose (foundation / material / ui / animation) 1.5.4 (Apache License 2.0): declarative UI.",
+        "AndroidX Core-KTX 1.10.0 (Apache License 2.0): foundational extensions.",
+        "AndroidX Activity / Activity-Compose 1.8.0 (Apache License 2.0): UI host and Compose integration.",
+        "AndroidX AppCompat 1.6.1 (Apache License 2.0): compatibility layer.",
+        "AndroidX Lifecycle (runtime / viewmodel) 2.6.1 (Apache License 2.0): state and lifecycle management.",
+        "Material Components 1.13.0 (Apache License 2.0): theme and widget foundation.",
+        "AndroidX ExifInterface 1.3.2 (Apache License 2.0): avatar image orientation correction.",
+        "AndroidX Room (runtime / ktx / compiler) 2.6.1 (Apache License 2.0): database layer for the memory store and the local vector table; its annotation processing runs at compile time via KSP, not kapt.",
+        "AndroidX WorkManager (runtime-ktx) 2.8.1 (Apache License 2.0): backfills the search index in the background under charging and device-idle constraints.",
+        "Kotlin Symbol Processing (KSP) (Apache License 2.0): compile-time code generation for Room.",
+        "Microsoft ONNX Runtime Android 1.17.1 (MIT License): runs sentence-embedding inference on the device.",
+        "bge-micro-v2 sentence-embedding model (INT8 quantised, MIT License, sourced from Xenova/bge-micro-v2 on Hugging Face): the text-embedding model behind on-device semantic search; the weights ship inside the APK and are never uploaded anywhere.",
         "The Kotlin standard library and kotlinx.coroutines (pulled in by the components above): language runtime and coroutines.",
-        "Note: networking is implemented with the Android platform's built-in HttpURLConnection and org.json; no third-party networking libraries such as OkHttp or Retrofit are used, and the project uses no third-party UI framework, image-loading library or data-persistence framework. Please retain the licence notices of the components above when redistributing the APK."
+        "Note: networking is implemented with the Android platform's built-in HttpURLConnection and org.json; no third-party networking libraries such as OkHttp or Retrofit are used, and the project uses no third-party UI framework or image-loading library. All semantic-search vector computation happens on the device. Please retain the licence notices of the components above and the NOTICE file when redistributing the APK."
       )
     ),
 
