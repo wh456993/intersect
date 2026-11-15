@@ -121,6 +121,90 @@ data class DevRequestConfig(
   fun model(): String =
     runCatching { JSONObject(body).optString("model") }.getOrDefault("").ifEmpty { "未设置模型" }
 
+  /** 请求体里的 model 原值(读不到就是空串):换模型 / 判断思考模式时要用原值,不能用占位文案。 */
+  fun rawModel(): String =
+    runCatching { JSONObject(body).optString("model").trim() }.getOrDefault("")
+
+  /** 当前配置对应的内置服务商:深度思考 / 联网搜索这两项要按它取参数写法。 */
+  fun providerSpec(): ApiProvider = ApiModels.providerOf(provider)
+
+  /**
+   * 改请求体:改完返回一份新的配置。
+   *
+   * body 不是合法 JSON 对象时返回 null —— 调用方据此提示用户先去请求体页把 JSON 改对,
+   * 而不是悄悄给一份「看着没变」的配置。
+   */
+  fun editBody(block: (JSONObject) -> Unit): DevRequestConfig? {
+    val root = runCatching { JSONObject(body) }.getOrNull() ?: return null
+    block(root)
+    return copy(body = root.toString(2))
+  }
+
+  /**
+   * 换模型:同一个接口地址下的不同模型(如 qwen-max ↔ qwen3-max)。
+   *
+   * 只改 body 里的 model 字段,不碰 URL 与 KEY:它们按地址匹配,换模型不用重新配 KEY。
+   */
+  fun withModel(model: String): DevRequestConfig? =
+    editBody { it.put("model", model.trim()) }
+
+  /** 深度思考开 / 关;这家没有内置开关时原样返回(请求体一个字都不动)。 */
+  fun withThinking(on: Boolean): DevRequestConfig? = applyToggle(providerSpec().thinking, on)
+
+  /** 联网搜索开 / 关;这家没有内置开关时原样返回。 */
+  fun withSearch(on: Boolean): DevRequestConfig? = applyToggle(providerSpec().search, on)
+
+  /** 深度思考现在是不是开着:靠换模型开关的服务商看模型名,其余看请求体里的参数值。 */
+  fun thinkingEnabled(): Boolean = toggleOn(providerSpec().thinking)
+
+  /** 联网搜索现在是不是开着。 */
+  fun searchEnabled(): Boolean = toggleOn(providerSpec().search)
+
+  /**
+   * 把一家服务商的开关写法落到请求体上。
+   *
+   * 三种情况都走这一个函数:
+   * - 只有参数名:写参数(如 `enable_thinking: true`);
+   * - 只有模型:换模型(如 deepseek-flash ↔ deepseek-v4-pro),请求体其余字段不动;
+   * - 两样都有:先换模型再写参数。
+   *
+   * 关闭时 [DevParamSpec.off] 为 null 表示「把这个参数整条删掉」,不留 `false` 给服务端挑刺。
+   */
+  private fun applyToggle(spec: DevParamSpec, on: Boolean): DevRequestConfig? {
+    if (!spec.supported) return this
+    val target = if (on) spec.onModel else spec.offModel
+    val key = spec.key
+    val value = if (on) spec.on else spec.off
+    return editBody { root ->
+      if (target != null) root.put("model", target)
+      if (key != null) {
+        if (value == null) root.remove(key) else root.put(key, value)
+      }
+    }
+  }
+
+  /** 开关现在是不是开着(界面按钮两态靠它)。 */
+  private fun toggleOn(spec: DevParamSpec): Boolean {
+    if (!spec.supported) return false
+    // 靠换模型开关的:当前模型就是「打开时该用的那个」才算开着
+    val onModel = spec.onModel
+    if (spec.key == null) return onModel != null && rawModel().equals(onModel, ignoreCase = true)
+    val root = runCatching { JSONObject(body) }.getOrNull() ?: return false
+    return sameValue(root.opt(spec.key), spec.on)
+  }
+
+  /**
+   * 请求体里的值算不算「开」。
+   *
+   * 布尔直接比;对象 / 数组按序列化后的文本比 —— 我们自己写进去的就是同一个构造顺序,
+   * 用户手改成别的形态(如 `"enabled"` 字符串)时判定为「关」,再点一下会写回标准写法。
+   */
+  private fun sameValue(actual: Any?, expected: Any?): Boolean {
+    if (actual == null || expected == null) return false
+    if (actual is Boolean && expected is Boolean) return actual == expected
+    return actual.toString() == expected.toString()
+  }
+
   /**
    * 拼出真正要发的请求体文本。
    *
@@ -252,6 +336,11 @@ object DevConsoleStore {
     val raw = prefs.getString(KEY_PREFIX + provider.label, null)
       ?: return DevRequestConfig.defaultFor(provider)
     return runCatching { fromJson(JSONObject(raw), provider) }
+      // 以前存下来的请求体里可能还是老模型名:读出来时换成现在的叫法
+      .map { config ->
+        val model = config.rawModel()
+        if (model.isEmpty()) config else config.withModel(ModelNames.normalize(model)) ?: config
+      }
       .getOrElse { DevRequestConfig.defaultFor(provider) }
   }
 

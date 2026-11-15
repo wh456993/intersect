@@ -40,6 +40,19 @@
             android:name=".service.KeepAliveService"
             android:exported="false" />
 
+        <!-- 测试反馈:把生成的日志报告交给系统分享面板(用户在里面选 QQ 发送)。
+             authority 跟着 applicationId 走,beta 包会自动是 ...intersect.beta.fileprovider,
+             两个包同时装着也不会撞。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- 开机完成 / 应用更新后拉起常驻服务;ACTION_RESTART 是被划掉后的自我唤回 -->
         <receiver
             android:name=".receiver.KeepAliveReceiver"

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  分享用的临时授权目录(FileProvider)。
+
+  「测试反馈」生成的报告在 bugreport/ 下,黑匣子日志在 buglog/ 下,两处都放在
+  应用自己的外部文件目录里:既能被文件管理器看到,又不需要任何存储权限。
+  外部目录拿不到时(极少数机型)会退回内部 filesDir,所以两条路径都声明一遍。
+-->
+<paths>
+    <external-files-path name="bugreport_external" path="bugreport/" />
+    <files-path name="bugreport_internal" path="bugreport/" />
+    <external-files-path name="buglog_external" path="buglog/" />
+    <files-path name="buglog_internal" path="buglog/" />
+</paths>

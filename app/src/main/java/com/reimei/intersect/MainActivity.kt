@@ -21,12 +21,14 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import com.reimei.intersect.data.BackgroundSetting
+import com.reimei.intersect.data.BugLog
 import com.reimei.intersect.data.DevMode
 import com.reimei.intersect.data.Heartbeat
 import com.reimei.intersect.data.LangSetting
 import com.reimei.intersect.data.MeProfile
 import com.reimei.intersect.data.MemoryPromptStore
 import com.reimei.intersect.data.ThemeSetting
+import com.reimei.intersect.search.SearchIndexer
 import com.reimei.intersect.service.startKeepAlive
 import com.reimei.intersect.ui.theme.AppTheme
 import com.reimei.intersect.ui.theme.isDarkTheme
@@ -51,10 +53,16 @@ class MainActivity : AppCompatActivity() {
     BackgroundSetting.init(this)
     // 开发者模式:关着时界面上没有任何存储层信息,开着主聊天才有「全部显示」入口
     DevMode.init(this)
+    // 黑匣子日志:装崩溃处理器 + 起写入协程(「测试反馈」生成的报告要读它)
+    BugLog.init(this)
     // 总结记忆提示词的自定义开关(开发者模式下可以在记忆库页改)
     MemoryPromptStore.init(this)
     // 常驻开着的话顺手确认服务在跑:进程被系统回收后重启是全新进程,状态得自己接上
     if (BackgroundSetting.keepAlive) startKeepAlive()
+
+    // 混合检索:启动时做向量模型版本迁移检查(不符清空重算),并把后台回填
+    // (充电 + 息屏)排进 WorkManager;内部全程 try/catch,失败不影响启动
+    SearchIndexer.onAppStart(this)
 
     // 活跃采样:每 10 分钟记一条前台/后台状态,给「Token 统计」里的连续天数与使用时长用
     Heartbeat.start(this)

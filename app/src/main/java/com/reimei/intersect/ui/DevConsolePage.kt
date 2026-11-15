@@ -22,10 +22,13 @@ import androidx.compose.material.AlertDialog
 import androidx.compose.material.DropdownMenu
 import androidx.compose.material.DropdownMenuItem
 import androidx.compose.material.Icon
+import androidx.compose.material.Switch
+import androidx.compose.material.SwitchDefaults
 import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import com.reimei.intersect.i18n.Text
+import com.reimei.intersect.i18n.t
 import androidx.compose.runtime.*
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -50,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.reimei.intersect.R
+import com.reimei.intersect.MainViewModel
 import com.reimei.intersect.data.ApiKey
 import com.reimei.intersect.data.ApiKeyStore
 import com.reimei.intersect.data.ApiModels
@@ -61,6 +65,7 @@ import com.reimei.intersect.data.DevConsoleStore
 import com.reimei.intersect.data.DevExchange
 import com.reimei.intersect.data.DevLogFiles
 import com.reimei.intersect.data.DevMsg
+import com.reimei.intersect.data.DevParamSpec
 import com.reimei.intersect.data.DevRequestConfig
 import com.reimei.intersect.data.ImmediateMemoryState
 import com.reimei.intersect.data.Item
@@ -69,6 +74,7 @@ import com.reimei.intersect.data.MemoryJobs
 import com.reimei.intersect.data.MemoryRounds
 import com.reimei.intersect.data.MemoryStore
 import com.reimei.intersect.data.MemorySummaryResult
+import com.reimei.intersect.data.ModelNames
 import com.reimei.intersect.data.Msg
 import com.reimei.intersect.data.RoleplayMode
 import com.reimei.intersect.data.TimeManager
@@ -117,7 +123,7 @@ private const val DEV_CONSOLE_ID = "dev-console"
  * - 「请求体」:整段 JSON 就是一个代码框,直接改整段文本,底部有重置与保存;
  * - 「角色信息」:和主聊天的角色信息页同一套入口(角色身份 / 物品管理器 / 时间管理器...),
  *   只是这一份只属于控制台:角色设定不写进通讯录,物品目录也不挂到任何好友名下;
- *   事件线 / 地图管理器与主聊天一致,仍是「开发中」;记忆库是真的(即时记忆层的总结按同样的
+ *   空间管理器与主聊天一致,仍是「开发中」;记忆库是真的(即时记忆层的总结按同样的
  *   规则注入控制台的报文,只是记忆挂在控制台自己的保留 id 上,不碰任何好友);
  * - 「模式」:切换 intersect 的扮演模式。
  *
@@ -133,6 +139,7 @@ private const val DEV_CONSOLE_ID = "dev-console"
 @Composable
 fun DevConsole(
   modifier: Modifier = Modifier,
+  viewModel: MainViewModel,
   onBack: () -> Unit,
   intersectMode: RoleplayMode,
   onSwitchIntersectMode: (RoleplayMode) -> Unit,
@@ -173,8 +180,14 @@ fun DevConsole(
   var showAddItem by remember { mutableStateOf(false) }
   /** 记忆库:和主聊天同一页([MemoryLibraryPage]),只是记忆挂在控制台自己的保留 id 上。 */
   var showMemory by remember { mutableStateOf(false) }
+  /** 记忆压测面板(TASK-04):三个上帝按钮(注入假数据 / 强制总结 / 状态看板)。 */
+  var showStress by remember { mutableStateOf(false) }
   /** 输入框内容由控制台持有:取消本轮时要把原文放回输入框,不能随输入框内部状态一起丢。 */
   var draftText by remember { mutableStateOf("") }
+  /** 底部附件面板是否展开(和主聊天同一套交互:点加号从屏幕底边长出来)。 */
+  var attachOpen by remember { mutableStateOf(false) }
+  /** 模型选择页:列出当前这家接口的所有模型,点了就换(同一个 API 的不同模型)。 */
+  var showModelPicker by remember { mutableStateOf(false) }
 
   // 多选与气泡菜单:与主聊天([ConversationPage])同一套交互 —— 长按出菜单,多选后顶栏换成操作条
   val selected = remember { mutableStateListOf<DevMsg>() }
@@ -290,6 +303,26 @@ fun DevConsole(
 
   /** 本次要用的 KEY 原文;没有可用配置时为空串。 */
   fun resolveKey(): String = resolveKeyObject()?.key.orEmpty()
+
+  /**
+   * 一键改请求配置(模型 / 深度思考 / 联网搜索):改完立刻落盘并写一行日志。
+   *
+   * [next] 为 null 表示请求体不是合法 JSON 对象 —— 这时只提示,不动配置,
+   * 免得用户以为「点了没反应」。返回是否真的改了。
+   */
+  fun applyConfig(next: DevRequestConfig?, what: String): Boolean {
+    if (next == null) {
+      log("error: $what 改不了 —— 请求体不是合法 JSON 对象")
+      return false
+    }
+    config = next
+    DevConsoleStore.save(context, next)
+    log(
+      "config: $what → model=${next.rawModel()} " +
+        "thinking=${next.thinkingEnabled()} search=${next.searchEnabled()}"
+    )
+    return true
+  }
 
   /**
    * 第一下发送:不真的发,先把这一轮的完整报文拼好推给「本次请求体」页。
@@ -431,10 +464,21 @@ fun DevConsole(
         )
       } else {
         DevConsoleTopBar(
-          title = "${config.provider} · ${config.model()}",
+          title = "${config.provider} · ${ModelNames.display(config.model())}",
           onBack = onBack,
           onLog = { showLog = true },
           onExchanges = { showExchanges = true }
+        )
+        // 模型 / 深度思考 / 联网搜索三个按钮:点一下就改请求配置,不用进「请求体」页手写 JSON
+        DevRequestBar(
+          config = config,
+          onPickModel = { showModelPicker = true },
+          onToggleThinking = {
+            applyConfig(config.withThinking(!config.thinkingEnabled()), "深度思考")
+          },
+          onToggleSearch = {
+            applyConfig(config.withSearch(!config.searchEnabled()), "联网搜索")
+          },
         )
       }
       MessageList(
@@ -475,23 +519,49 @@ fun DevConsole(
         // 输入内容由控制台托管:取消本轮时要把原文放回输入框
         draft = draftText,
         onDraftChange = { draftText = it },
-        attachItems = listOf(
-          // 「全部显示」:和主聊天附件菜单里那一项同一套开关,打开后每条气泡下面带上它自己的编码
-          AttachItem(
-            label = if (showCodes) "收起全部" else "全部显示",
-            icon = R.drawable.ui_menu_bars,
-          ) { showCodes = !showCodes },
-          AttachItem("请求体", R.drawable.ui_dev_request) { showEditor = true },
-          // 和主聊天一致:角色信息是一层入口,角色身份 / 物品管理器都在它下面
-          AttachItem("角色信息", R.drawable.ui_dev_character) { showCharacterInfo = true },
-          AttachItem("模式", R.drawable.ui_dev_mode) { showMode = true },
-        ),
+        sheetOpen = attachOpen,
+        onSheetOpenChange = { attachOpen = it },
+        sheet = {
+          // 和主聊天同一套底部面板:点加号从屏幕底边长出来,输入栏被顶上去
+          AttachSheet(
+            listOf(
+              // 「全部显示」:和主聊天附件面板里那一项同一套开关,打开后每条气泡下面带上它自己的编码
+              AttachEntry(
+                label = if (showCodes) "收起全部" else "全部显示",
+                iconRes = R.drawable.ui_menu_bars,
+              ) {
+                showCodes = !showCodes
+                attachOpen = false
+              },
+              AttachEntry("请求体", R.drawable.ui_dev_request) {
+                attachOpen = false
+                showEditor = true
+              },
+              // 和主聊天一致:角色信息是一层入口,角色身份 / 物品管理器都在它下面
+              AttachEntry("角色信息", R.drawable.ui_dev_character) {
+                attachOpen = false
+                showCharacterInfo = true
+              },
+              // 压测面板:注入假数据 / 强制触发总结 / 看当前记忆库状态(动的是主聊天的真实数据)
+              AttachEntry("压测面板", R.drawable.ui_dev_stress) {
+                attachOpen = false
+                showStress = true
+              },
+              AttachEntry("模式", R.drawable.ui_dev_mode) {
+                attachOpen = false
+                showMode = true
+              },
+            )
+          )
+        },
       )
     }
 
     // 返回键:先收菜单,再退多选,最后才是离开控制台
     BackHandler(enabled = menuMsg != null) { menuMsg = null }
     BackHandler(enabled = menuMsg == null && selectionMode) { selected.clear() }
+    // 附件面板展开时,返回先收面板(和主聊天一致)
+    BackHandler(enabled = attachOpen) { attachOpen = false }
 
     val confirmDelete = pendingDelete
     if (confirmDelete != null) {
@@ -728,6 +798,23 @@ fun DevConsole(
       )
     }
 
+    // 记忆压测面板:三个上帝按钮。这里动的是**主聊天**的真实会话与 memory.db
+    // (而不是控制台自己的 DEV_CONSOLE_ID)—— 压测要测的就是用户真正跑的那条链路。
+    val stressOffset by animateFloatAsState(
+      targetValue = if (showStress) 0f else 1f,
+      animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow
+      )
+    )
+    if (showStress) {
+      DevStressPanel(
+        Modifier.percentOffsetX(stressOffset),
+        viewModel = viewModel,
+        onBack = { showStress = false }
+      )
+    }
+
     // 记忆库:与主聊天同一页(即时记忆层 / 时间线索引层 / 长期记忆层)。
     // 控制台没有通讯录里的角色,记忆挂在 DEV_CONSOLE_ID 上,和任何好友互不相干;
     // 总结用的轮次从控制台自己的聊天记录里按「用户一句 + 模型一句」分组。
@@ -761,7 +848,7 @@ fun DevConsole(
         title = "intersect 模式",
         options = listOf(
           ChoiceOption(
-            title = "Avatar-based Role-Play",
+            title = "角色代入",
             selected = intersectMode == RoleplayMode.AVATAR_BASED,
             onClick = {
               onSwitchIntersectMode(RoleplayMode.AVATAR_BASED)
@@ -769,7 +856,7 @@ fun DevConsole(
             }
           ),
           ChoiceOption(
-            title = "Self-insert Role-Play",
+            title = "本体代入",
             selected = intersectMode == RoleplayMode.SELF_INSERT,
             onClick = {
               onSwitchIntersectMode(RoleplayMode.SELF_INSERT)
@@ -779,6 +866,33 @@ fun DevConsole(
         ),
         modifier = Modifier.percentOffsetX(modeOffset),
         onBack = { showMode = false }
+      )
+    }
+
+    // 模型选择:只列当前这家接口自己的模型 —— 同一个 API 的不同模型,换模型不用重填 URL 与 KEY
+    val modelPickerOffset by animateFloatAsState(
+      targetValue = if (showModelPicker) 0f else 1f,
+      animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow
+      )
+    )
+    if (showModelPicker) {
+      val models = config.providerSpec().models
+      val current = config.rawModel()
+      ChoicePage(
+        title = "选择模型",
+        options = models.map { name ->
+          ChoiceOption(
+            title = ModelNames.display(name),
+            selected = name.equals(current, ignoreCase = true),
+            onClick = {
+              if (applyConfig(config.withModel(name), "模型")) showModelPicker = false
+            }
+          )
+        },
+        modifier = Modifier.percentOffsetX(modelPickerOffset),
+        onBack = { showModelPicker = false }
       )
     }
   }
@@ -941,11 +1055,11 @@ private fun StagedRequestEditor(
 }
 
 /**
- * 开发者控制台的「角色信息」页:主聊天角色信息页的**全部**入口,指向控制台自己这份角色设定。
+ * 开发者控制台的「角色信息」页:与控制台自己那份角色设定对应的入口。
  *
- * 与主聊天那份([CharacterInfoPage])的差别只在数据来源:控制台的角色设定与物品目录都只属于
- * 控制台自己(不写进通讯录、不影响任何会话),排版与条目组件是同一套,两边看起来一致。
- * 事件线 / 地图管理器在主聊天里也还是「开发中」,这里照原样标着。记忆库已经是真的了:
+ * 排版与条目组件和主聊天的 [CharacterInfoPage] 是同一套,但**入口清单以主聊天为准**:
+ * 控制台的 [DevCharacter] 没有扮演模式,也没有世界观 / 背景,所以这两项在这里不出现,
+ * 空间管理器与主聊天一致,仍是「开发中」;记忆库是真的:
  * 它打开的是同一页 [MemoryLibraryPage],只是记忆挂在控制台自己的保留 id 上。
  *
  * [selfInsert] 为 true 时(全局 intersect 模式是 Self-insert)时间管理器显示实时时间,
@@ -1017,15 +1131,13 @@ private fun DevCharacterInfoPage(
           onClick = onOpenIdentity
         )
         CharacterDivider()
-        ComingSoonRow("事件线")
-        CharacterDivider()
         CharacterEntryRow(
           title = "记忆库",
           detail = "即时记忆 / 时间线索引 / 长期记忆",
           onClick = onOpenMemory
         )
         CharacterDivider()
-        ComingSoonRow("地图管理器")
+        ComingSoonRow("空间管理器")
         CharacterDivider()
         CharacterEntryRow(
           title = "物品管理器",
@@ -1037,7 +1149,7 @@ private fun DevCharacterInfoPage(
         if (selfInsert) {
           TimeManagerRow(now)
         } else {
-          ComingSoonRow("时间管理器")
+          ComingSoonRow("时间管理器", BASE_TIME_NOTE)
         }
       }
     }
@@ -1102,6 +1214,97 @@ private fun TopAction(text: String, onClick: () -> Unit) {
     fontSize = 13.sp,
     color = AppTheme.colors.iconCurrent
   )
+}
+
+/**
+ * 顶栏下面那条请求配置条:模型 / 深度思考 / 联网搜索。
+ *
+ * 三个都是「点一下就换状态」的按钮,改完立刻写进请求体并落盘:
+ * - **模型**:打开几选一页,列出当前这家接口自己的模型(同一个 API 的不同模型,不用重填 URL 与 KEY);
+ * - **深度思考 / 联网搜索**:直接开 / 关。写法按服务商走(见 [DevParamSpec]):千问是请求体里的
+ *   `enable_thinking` / `enable_search`,DeepSeek 的思考靠换模型,没内置参数的那家按钮置灰。
+ *
+ * 放在顶栏下而不是塞进附件菜单,是因为这两项要能一眼看出「现在开着还是关着」;
+ * 三个按钮排在一行,窄屏放不下时整条可以横向滑。
+ */
+@Composable
+private fun DevRequestBar(
+  config: DevRequestConfig,
+  onPickModel: () -> Unit,
+  onToggleThinking: () -> Unit,
+  onToggleSearch: () -> Unit,
+) {
+  val provider = config.providerSpec()
+  val thinkingOn = config.thinkingEnabled()
+  val searchOn = config.searchEnabled()
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .horizontalScroll(rememberScrollState())
+      .padding(start = 10.dp, end = 10.dp, bottom = 6.dp),
+    horizontalArrangement = Arrangement.spacedBy(6.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    DevBarChip(
+      text = config.rawModel().ifEmpty { "未设置模型" },
+      active = false,
+      onClick = onPickModel
+    )
+    DevBarChip(
+      text = toggleLabel("深度思考", thinkingOn, provider.thinking.supported),
+      active = thinkingOn,
+      enabled = provider.thinking.supported,
+      onClick = onToggleThinking
+    )
+    DevBarChip(
+      text = toggleLabel("联网搜索", searchOn, provider.search.supported),
+      active = searchOn,
+      enabled = provider.search.supported,
+      onClick = onToggleSearch
+    )
+  }
+}
+
+/** 开关按钮上的文案:支持就写当前状态,不支持就直说 —— 免得点了没反应还一头雾水。 */
+@Composable
+private fun toggleLabel(title: String, on: Boolean, supported: Boolean): String = when {
+  !supported -> t("{0}:不支持", t(title))
+  on -> t("{0}:开", t(title))
+  else -> t("{0}:关", t(title))
+}
+
+/** 配置条上的一个小按钮:选中态用主题色实心,置灰的表示这家没有这个开关。 */
+@Composable
+private fun DevBarChip(
+  text: String,
+  active: Boolean,
+  enabled: Boolean = true,
+  onClick: () -> Unit
+) {
+  Box(
+    Modifier
+      .clip(RoundedCornerShape(8.dp))
+      .background(
+        when {
+          !enabled -> AppTheme.colors.textFieldBackground
+          active -> AppTheme.colors.iconCurrent
+          else -> AppTheme.colors.listItem
+        }
+      )
+      .clickable(enabled = enabled, onClick = onClick)
+      .padding(horizontal = 10.dp, vertical = 6.dp)
+  ) {
+    Text(
+      text,
+      fontSize = 11.sp,
+      maxLines = 1,
+      color = when {
+        !enabled -> AppTheme.colors.more
+        active -> AppTheme.colors.listItem
+        else -> AppTheme.colors.textPrimary
+      }
+    )
+  }
 }
 
 /**
@@ -1406,7 +1609,7 @@ private fun LogTerminal(
       TerminalAction("清空", onClear)
     }
     Text(
-      "$ ${config.provider} / ${config.model()} / ${config.endpoint()}",
+      "$ ${config.provider} / ${ModelNames.display(config.model())} / ${config.endpoint()}",
       Modifier.padding(horizontal = 12.dp),
       fontFamily = FontFamily.Monospace,
       fontSize = 11.sp,
@@ -1642,8 +1845,17 @@ private fun RequestEditor(
   var draft by remember { mutableStateOf(config) }
   var error by remember { mutableStateOf<String?>(null) }
 
-  val provider = ApiModels.PROVIDERS.firstOrNull { it.label == draft.provider }
-    ?: ApiModels.PROVIDERS.first()
+  val provider = draft.providerSpec()
+
+  /** 改请求体失败(JSON 坏了)时统一给这句提示,别让按钮看着像坏了。 */
+  fun apply(next: DevRequestConfig?) {
+    if (next == null) {
+      error = "请求体不是合法的 JSON 对象"
+    } else {
+      draft = next
+      error = null
+    }
+  }
 
   Column(
     modifier
@@ -1660,8 +1872,29 @@ private fun RequestEditor(
       url = draft.url,
       onValueChange = { draft = draft.copy(url = it) }
     )
+    // 模型:同一个接口地址下的不同模型,点一下只改 body 里的 model 字段
+    ModelChips(
+      models = provider.models,
+      current = draft.rawModel(),
+      onPick = { name -> apply(draft.withModel(name)) }
+    )
+    DevToggleRow(
+      title = "深度思考",
+      hint = specHint(provider.thinking),
+      checked = draft.thinkingEnabled(),
+      supported = provider.thinking.supported,
+      onToggle = { apply(draft.withThinking(!draft.thinkingEnabled())) }
+    )
+    DevToggleRow(
+      title = "联网搜索",
+      hint = specHint(provider.search),
+      checked = draft.searchEnabled(),
+      supported = provider.search.supported,
+      onToggle = { apply(draft.withSearch(!draft.searchEnabled())) }
+    )
     Text(
-      "角色设定在「角色」页填写,发送时会作为一条 system 消息插到最前面;这里只放请求体本身。",
+      "角色设定在「角色」页填写,发送时会作为一条 system 消息插到最前面;这里只放请求体本身。" +
+        "模型与两个开关也是改这份请求体,改完点下面的「保存」才落盘。",
       Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp),
       fontSize = 11.sp,
       color = AppTheme.colors.textSecondary
@@ -1777,7 +2010,7 @@ private fun UrlRow(url: String, onValueChange: (String) -> Unit) {
   Row(
     Modifier
       .fillMaxWidth()
-      .padding(horizontal = 12.dp)
+      .padding(horizontal = 12.dp, vertical = 4.dp)
       .clip(RoundedCornerShape(10.dp))
       .background(AppTheme.colors.listItem)
       .padding(horizontal = 12.dp, vertical = 10.dp),
@@ -1803,4 +2036,103 @@ private fun UrlRow(url: String, onValueChange: (String) -> Unit) {
       keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done)
     )
   }
+}
+
+/**
+ * 这家接口自己的模型清单:都是同一个 URL / 同一把 KEY 下的不同模型,点一下就换。
+ *
+ * 模型名长短差得多(如 qwen3-coder-plus),所以整行可横向滑,不截断。
+ */
+@Composable
+private fun ModelChips(models: List<String>, current: String, onPick: (String) -> Unit) {
+  Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+    Text(
+      "模型",
+      Modifier.padding(bottom = 6.dp),
+      fontSize = 11.sp,
+      color = AppTheme.colors.textSecondary
+    )
+    Row(
+      Modifier
+        .fillMaxWidth()
+        .horizontalScroll(rememberScrollState()),
+      horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+      models.forEach { name ->
+        val selected = name.equals(current, ignoreCase = true)
+        Box(
+          Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+              if (selected) AppTheme.colors.iconCurrent else AppTheme.colors.listItem
+            )
+            .clickable { onPick(name) }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+          Text(
+            ModelNames.display(name),
+            fontSize = 13.sp,
+            maxLines = 1,
+            color = if (selected) AppTheme.colors.listItem else AppTheme.colors.textPrimary
+          )
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 一行开关:深度思考 / 联网搜索共用。
+ *
+ * [checked] 从请求体里读出来(不是自己记一份),所以在代码框里手改参数后这里的开关会跟着变;
+ * [supported] 为 false 表示这家没有内置这个参数:整行置灰,只留一句「可以手写」的小字。
+ */
+@Composable
+private fun DevToggleRow(
+  title: String,
+  hint: String,
+  checked: Boolean,
+  supported: Boolean,
+  onToggle: () -> Unit
+) {
+  Row(
+    Modifier
+      .fillMaxWidth()
+      .padding(horizontal = 12.dp, vertical = 2.dp)
+      .clip(RoundedCornerShape(10.dp))
+      .background(AppTheme.colors.listItem)
+      .clickable(enabled = supported, onClick = onToggle)
+      .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Column(Modifier.weight(1f)) {
+      Text(
+        title,
+        fontSize = 13.sp,
+        color = if (supported) AppTheme.colors.textPrimary else AppTheme.colors.more
+      )
+      Text(hint, fontSize = 11.sp, color = AppTheme.colors.textSecondary)
+    }
+    Spacer(Modifier.width(8.dp))
+    // 开关只做展示,点击交给整行,和自己那套设置项一致
+    Switch(
+      checked = checked && supported,
+      enabled = supported,
+      onCheckedChange = null,
+      colors = SwitchDefaults.colors(
+        checkedThumbColor = AppTheme.colors.onFab,
+        checkedTrackColor = AppTheme.colors.iconCurrent,
+        uncheckedThumbColor = AppTheme.colors.textSecondary,
+        uncheckedTrackColor = AppTheme.colors.chatListDivider
+      )
+    )
+  }
+}
+
+/** 开关下面那行小字:写清楚这个开关会往请求体里写什么,或者为什么用不了。 */
+@Composable
+private fun specHint(spec: DevParamSpec): String = when {
+  spec.key != null -> t("写进请求体:{0}", spec.key)
+  spec.onModel != null -> t("打开时模型切到 {0}", ModelNames.display(spec.onModel))
+  else -> t("该服务商未内置这个参数,可以在请求体里手写")
 }
