@@ -217,7 +217,7 @@ fun HomeShell() {
           windowName = { id -> viewModel.contacts.firstOrNull { it.id == id }?.name ?: id }
         )
 
-        // 数据备份:导出加密备份文件,或从已有备份恢复
+        // 数据备份:四类内容各自导出成明文 .json,或从已有备份导入
         MeMenu.Backup -> BackupPage(
           onBack = { viewModel.closeMeMenu() },
           onRestored = { viewModel.reloadFromStores(context) }
@@ -225,6 +225,9 @@ fun HomeShell() {
 
         // 隐私政策:与开屏页同一份正文的只读模式(顶栏 + 返回 + 撤销授权)
         MeMenu.Privacy -> PrivacyPolicyPage(onBack = { viewModel.closeMeMenu() })
+
+        // 支持开发者:作者名片 + GitHub / 邮箱 / 抖音三个外链
+        MeMenu.Support -> SupportPage(onBack = { viewModel.closeMeMenu() })
 
         else -> MeSettingPage(
           menu = meMenu,
@@ -237,6 +240,7 @@ fun HomeShell() {
       val intersectMode = viewModel.contacts.firstOrNull { it.id == DawnAssistant.ID }?.roleplayMode
         ?: RoleplayMode.SELF_INSERT
       DeveloperPage(
+        viewModel = viewModel,
         intersectMode = intersectMode,
         onSwitchIntersectMode = { mode -> viewModel.setIntersectMode(context, mode) },
         onBack = { viewModel.closeDeveloper() }
@@ -268,8 +272,9 @@ fun HomeShell() {
     SlideOverlay(payload = Unit.takeIf { viewModel.showAddFriend }) {
       AddFriendPage(
         onBack = { viewModel.closeAddFriend() },
-        onConfirm = { friend ->
-          viewModel.addFriend(context, friend)
+        onConfirm = { friend, baseTime ->
+          // baseTime 是草稿里改过的基准时间:作为这个角色的时钟账本初始状态落盘
+          viewModel.addFriend(context, friend, baseTime)
           viewModel.closeAddFriend()
         }
       )
@@ -297,9 +302,14 @@ fun HomeShell() {
     SlideOverlay(payload = characterFriend) { friend ->
       CharacterInfoPage(
         friend = friend,
+        // 故意不用 remember:改完基准时间回到这一页时,就是靠这次重组把新值读回来的
+        baseTime = viewModel.baseTimeLabel(context, friend.id),
         onOpenIdentity = { viewModel.openCharacterIdentity() },
         onOpenMemory = { viewModel.openMemory(friend.id) },
         onOpenItemManager = { viewModel.openItemManager(context, friend.id) },
+        onOpenWorldview = { viewModel.openWorldview() },
+        onOpenBackground = { viewModel.openBackground() },
+        onOpenTimeManager = { viewModel.openBaseTime() },
         onBack = { viewModel.closeCharacterInfo() }
       )
     }
@@ -313,6 +323,51 @@ fun HomeShell() {
           onSave = { name, personality, role ->
             viewModel.saveCharacter(context, friend, name, personality, role)
             viewModel.closeCharacterIdentity()
+          }
+        )
+      }
+    }
+    // 世界观页(角色代入专属):与角色身份页同一层,盖在角色信息页之上
+    SlideOverlay(payload = characterFriend?.takeIf { viewModel.showWorldview }) { friend ->
+      key(friend.id) {
+        WorldviewPage(
+          stateKey = friend.id,
+          original = friend.worldview,
+          onBack = { viewModel.closeWorldview() },
+          onSave = { worldview ->
+            viewModel.saveCharacterWorldview(context, friend, worldview)
+            viewModel.closeWorldview()
+          }
+        )
+      }
+    }
+    // 背景页(角色代入专属):同上
+    SlideOverlay(payload = characterFriend?.takeIf { viewModel.showBackground }) { friend ->
+      key(friend.id) {
+        BackgroundPage(
+          stateKey = friend.id,
+          original = friend.background,
+          onBack = { viewModel.closeBackground() },
+          onSave = { background ->
+            viewModel.saveCharacterBackground(context, friend, background)
+            viewModel.closeBackground()
+          }
+        )
+      }
+    }
+    // 时间管理器页(基准时间编辑器,角色代入专属):与世界观 / 背景同一层
+    SlideOverlay(payload = characterFriend?.takeIf { viewModel.showBaseTime }) { friend ->
+      key(friend.id) {
+        // 时间文本只在进来时拼一次:写在参数位置上会在每次输入触发的重组里读盘
+        // (与上面那一行相反:那里的 baseTime 必须每次重组重算,这里只需要初值)
+        val initialText = remember(friend.id) { viewModel.baseTimeLabel(context, friend.id) }
+        BaseTimePage(
+          stateKey = friend.id,
+          initialText = initialText,
+          onBack = { viewModel.closeBaseTime() },
+          onSave = { text ->
+            viewModel.saveBaseTime(context, friend.id, text)
+            viewModel.closeBaseTime()
           }
         )
       }

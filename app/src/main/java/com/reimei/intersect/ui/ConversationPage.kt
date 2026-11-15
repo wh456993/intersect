@@ -2,17 +2,22 @@ package com.reimei.intersect.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -36,12 +41,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
@@ -60,6 +69,7 @@ import com.reimei.intersect.data.Chat
 import com.reimei.intersect.data.DevMode
 import com.reimei.intersect.data.Msg
 import com.reimei.intersect.data.User
+import com.reimei.intersect.data.time.SceneDraft
 import com.reimei.intersect.ui.theme.AppTheme
 import androidx.compose.ui.unit.IntOffset
 
@@ -90,6 +100,13 @@ fun ConversationPage(
   // 已点开「全部显示」:每条 AI 回复下面附带这一轮的记忆索引(角色 UID / 用户 UID / 落盘时间)
   var showMemory by remember(chat) { mutableStateOf(false) }
 
+  // 输入栏上方的面板:附件条 ⇄ 导演模式面板,两者共用同一个弹出位置(同一时刻只开一个)
+  var attachPanelOpen by remember(chat) { mutableStateOf(false) }
+  var directorOpen by remember(chat) { mutableStateOf(false) }
+  // 面板里的草稿只在面板开着时存在:关掉就丢,不会以「半截输入」的形态进请求体
+  var sceneDraft by remember(chat) { mutableStateOf(SceneDraft()) }
+  var sceneError by remember(chat) { mutableStateOf<String?>(null) }
+
   // 已读状态只在进入会话时写一次。以前放在组合体里,每帧重组都会扫一遍全部消息
   LaunchedEffect(chat) { viewModel.read(context, chat) }
 
@@ -104,6 +121,15 @@ fun ConversationPage(
 
   // 菜单开着时,返回先收起菜单;ConversationPage 比首页的预测性返回后注册,所以它优先
   BackHandler(enabled = menuMsg != null) { menuMsg = null }
+  // 附件 / 导演面板开着时,返回先收起面板(先收导演面板,再收附件条)
+  BackHandler(enabled = attachPanelOpen) {
+    if (directorOpen) {
+      directorOpen = false
+      sceneError = null
+    } else {
+      attachPanelOpen = false
+    }
+  }
 
   val copySelected = {
     val text = chat.msgs.filter { msg -> selected.any { it === msg } }
@@ -144,21 +170,65 @@ fun ConversationPage(
         // 等回复 / 请求失败的状态行:只在需要时出现,平时不占高度
         ChatStatusLine(
           error = viewModel.replyError,
+          notice = viewModel.clockNotice,
           replying = viewModel.replyingCount > 0,
-          onDismissError = { viewModel.clearReplyError() }
+          onDismissError = { viewModel.clearReplyError() },
+          onDismissNotice = { viewModel.clearClockNotice() }
         )
         ChatBottomBar(
           onSend = { text -> viewModel.send(context, chat, text) },
-          // 开发者模式才出现的入口:点开把每一轮的记忆索引显示在 AI 回复那一侧
-          attachItems = if (devMode) {
-            listOf(
-              AttachItem(
-                label = if (showMemory) "收起全部" else "全部显示",
-                icon = R.drawable.ui_menu_bars,
-              ) { showMemory = !showMemory }
-            )
-          } else {
-            emptyList()
+          sheetOpen = attachPanelOpen,
+          onSheetOpenChange = { open ->
+            attachPanelOpen = open
+            directorOpen = false
+            sceneError = null
+            // 每次打开都重读一次当前场景:面板外的 /time 指令也可能刚改过时钟
+            if (open) sceneDraft = viewModel.sceneDraft(context, chat.friend.id)
+          },
+          sheet = {
+            if (directorOpen) {
+              DirectorScenePanel(
+                draft = sceneDraft,
+                onDraftChange = { sceneDraft = it },
+                error = sceneError,
+                onSave = {
+                  // null 表示真的落账了(或本来就没改):收起面板;
+                  // 非 null 是格式/长度问题,留在面板里让用户改
+                  val reason = viewModel.saveScene(context, chat, sceneDraft)
+                  sceneError = reason
+                  if (reason == null) {
+                    directorOpen = false
+                    attachPanelOpen = false
+                  }
+                },
+                onBack = {
+                  directorOpen = false
+                  sceneError = null
+                },
+              )
+            } else {
+              AttachSheet(
+                buildList {
+                  add(AttachEntry(label = "导演模式") {
+                    directorOpen = true
+                    sceneError = null
+                  })
+                  // 开发者的「全部显示」和导演模式并列在同一个面板里
+                  if (devMode) {
+                    add(
+                      AttachEntry(
+                        label = if (showMemory) "收起全部" else "全部显示",
+                        onClick = {
+                          showMemory = !showMemory
+                          attachPanelOpen = false
+                        },
+                        iconRes = R.drawable.ui_menu_bars,
+                      )
+                    )
+                  }
+                }
+              )
+            }
           },
         )
       }
@@ -433,16 +503,19 @@ private fun RowScope.BarAction(text: String, color: androidx.compose.ui.graphics
 @Composable
 private fun ChatStatusLine(
   error: String?,
+  notice: String?,
   replying: Boolean,
   onDismissError: () -> Unit,
+  onDismissNotice: () -> Unit,
 ) {
-  val text = error ?: if (replying) "对方正在输入..." else null
+  val text = error ?: notice ?: if (replying) "对方正在输入..." else null
   if (text == null) return
+  val dismiss = if (error != null) onDismissError else if (notice != null) onDismissNotice else null
   Row(
     Modifier
       .fillMaxWidth()
       .background(AppTheme.colors.background)
-      .clickable(enabled = error != null, onClick = onDismissError)
+      .clickable(enabled = dismiss != null, onClick = { dismiss?.invoke() })
       .padding(horizontal = 16.dp, vertical = 6.dp),
     verticalAlignment = Alignment.CenterVertically
   ) {
@@ -454,7 +527,7 @@ private fun ChatStatusLine(
       maxLines = 3,
       overflow = TextOverflow.Ellipsis
     )
-    if (error != null) {
+    if (dismiss != null) {
       Text("知道了", Modifier.padding(start = 12.dp), fontSize = 12.sp, color = AppTheme.colors.iconCurrent)
     }
   }
@@ -465,13 +538,23 @@ private val BAR_BUTTON_SIZE = 36.dp
 /** 按钮外圈留白:扩大点击区,同时不让按钮贴住输入框和屏幕右边缘。 */
 private val BAR_BUTTON_PADDING = 4.dp
 
-/** 底部附件按钮弹出菜单里的一项:一个图标 + 一个文字标签 + 点击动作。 */
-data class AttachItem(val label: String, val icon: Int, val onClick: () -> Unit)
-
+/**
+ * 聊天页底栏:输入栏 + 可从屏幕底边展开的附件面板。
+ *
+ * 面板**不在输入栏上方**,也不是锚在加号旁的下拉菜单 —— 它排在输入栏下面、自己占住屏幕底边,
+ * 展开时把输入栏顶上去(微信 / QQ / Telegram 的「+」都是这个交互,位移方向和输入法弹起一致)。
+ * 主聊天和开发者控制台都用这一个组件,两边的附件入口长得一样。
+ */
 @Composable
 fun ChatBottomBar(
   onSend: (String) -> Unit,
-  attachItems: List<AttachItem> = emptyList(),
+  /**
+   * 底部面板的内容(入口网格或导演模式表单)。null 表示这页没有附件入口,
+   * 加号只作视觉占位,和发送按钮并排时重量一致。
+   */
+  sheet: (@Composable () -> Unit)? = null,
+  sheetOpen: Boolean = false,
+  onSheetOpenChange: (Boolean) -> Unit = {},
   /**
    * 外部托管的输入内容:非 null 时输入框由调用方持有(而不是自己 remember 一份)。
    *
@@ -484,8 +567,8 @@ fun ChatBottomBar(
   var internalText by remember { mutableStateOf("") }
   val editingText = draft ?: internalText
   val writeText: (String) -> Unit = { if (draft == null) internalText = it else onDraftChange(it) }
-  var attachOpen by remember { mutableStateOf(false) }
   val canSend = editingText.isNotBlank()
+  val focusManager = LocalFocusManager.current
   val send = {
     val text = editingText.trim()
     if (text.isNotEmpty()) {
@@ -493,7 +576,94 @@ fun ChatBottomBar(
       writeText("")
     }
   }
-  TabBar(followsIme = true) {
+  Column {
+    ChatInputRow(
+      editingText = editingText,
+      writeText = writeText,
+      send = send,
+      canSend = canSend,
+      hasSheet = sheet != null,
+      sheetOpen = sheetOpen,
+      onToggleSheet = {
+        // 展开前先收键盘:面板要占的就是键盘那一块地方,两个同时在场只会互相遮挡
+        if (!sheetOpen) focusManager.clearFocus()
+        onSheetOpenChange(!sheetOpen)
+      },
+      onTextPressed = { if (sheetOpen) onSheetOpenChange(false) },
+    )
+    if (sheet != null) {
+      // 面板排在输入栏**下面**,并自己让出键盘 / 导航栏的空间:
+      // 展开时它从屏幕底边长出来、把输入栏顶上去,和输入法弹起是同一个位移方向。
+      AnimatedVisibility(
+        visible = sheetOpen,
+        enter = expandVertically(
+          animationSpec = tween(durationMillis = 180),
+          expandFrom = Alignment.Bottom
+        ) + fadeIn(animationSpec = tween(durationMillis = 120)),
+        exit = shrinkVertically(
+          animationSpec = tween(durationMillis = 160),
+          shrinkTowards = Alignment.Bottom
+        ) + fadeOut(animationSpec = tween(durationMillis = 100)),
+      ) {
+        Column(
+          Modifier
+            .fillMaxWidth()
+            .sheetBottomSpace()
+            .background(AppTheme.colors.bottomBar)
+        ) {
+          sheet()
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 底部面板要让出的空间:键盘弹起时让出键盘(面板被顶到键盘上方,导演模式里填时间时才不会被挡住),
+ * 否则让出导航栏。
+ *
+ * 和 [TabBar] 的 `bottomBarSpace` 一样在**布局阶段**读值:键盘动画期间 inset 逐帧变化,
+ * 放在组合阶段读会让整个面板每帧重组。
+ */
+@Composable
+private fun Modifier.sheetBottomSpace(): Modifier {
+  val imeInsets = WindowInsets.ime
+  val navigationInsets = WindowInsets.navigationBars
+  val density = LocalDensity.current
+  return layout { measurable, constraints ->
+    val bottom = maxOf(
+      imeInsets.getBottom(density),
+      navigationInsets.getBottom(density)
+    ).coerceAtLeast(0)
+    val placeable = measurable.measure(
+      constraints.copy(maxHeight = (constraints.maxHeight - bottom).coerceAtLeast(0))
+    )
+    layout(placeable.width, placeable.height + bottom) {
+      placeable.placeRelative(0, 0)
+    }
+  }
+}
+
+/** 输入栏本体(输入框 + 加号 + 发送)。拆出来只为让 [ChatBottomBar] 里「输入栏 + 面板」的结构看得清。 */
+@Composable
+private fun ChatInputRow(
+  editingText: String,
+  writeText: (String) -> Unit,
+  send: () -> Unit,
+  canSend: Boolean,
+  hasSheet: Boolean,
+  sheetOpen: Boolean,
+  onToggleSheet: () -> Unit,
+  onTextPressed: () -> Unit,
+) {
+  TabBar(followsIme = true, reserveBottomSpace = !sheetOpen) {
+    // 点输入框就收起面板(然后键盘自己弹出来):读交互事件而不是给输入框盖一层 clickable,
+    // 盖上去会抢掉 BasicTextField 自己的聚焦与光标定位。
+    val textInteraction = remember { MutableInteractionSource() }
+    val pressed = rememberUpdatedState(onTextPressed)
+    LaunchedEffect(textInteraction) {
+      textInteraction.interactions.collect { if (it is PressInteraction.Press) pressed.value() }
+    }
     BasicTextField(
       editingText, onValueChange = writeText,
       Modifier
@@ -506,11 +676,27 @@ fun ChatBottomBar(
       cursorBrush = SolidColor(AppTheme.colors.textPrimary),
       textStyle = TextStyle(fontSize = 15.sp, color = AppTheme.colors.textPrimary),
       keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-      keyboardActions = KeyboardActions(onSend = { send() })
+      keyboardActions = KeyboardActions(onSend = { send() }),
+      interactionSource = textInteraction,
     )
-    // 附件按钮始终在场,和发送按钮同尺寸;发送按钮是从它右边「长出来」的
-    if (attachItems.isEmpty()) {
-      // 没有附件菜单时,加号只是视觉占位(和发送按钮并排的重量一致)
+    val plusRotation by animateFloatAsState(
+      targetValue = if (sheetOpen) PLUS_OPEN_ROTATION else 0f
+    )
+    if (hasSheet) {
+      // 有面板:加号是面板开关,展开时转成「×」
+      Icon(
+        painterResource(R.drawable.ui_plus_frame),
+        contentDescription = "附件",
+        Modifier
+          .align(Alignment.CenterVertically)
+          .clickable(onClick = onToggleSheet)
+          .rotate(plusRotation)
+          .padding(BAR_BUTTON_PADDING)
+          .size(BAR_BUTTON_SIZE),
+        tint = AppTheme.colors.textPrimary
+      )
+    } else {
+      // 没有面板时,加号只是视觉占位(和发送按钮并排的重量一致)
       Icon(
         painterResource(R.drawable.ui_plus_frame),
         contentDescription = "附件",
@@ -518,44 +704,8 @@ fun ChatBottomBar(
           .align(Alignment.CenterVertically)
           .padding(BAR_BUTTON_PADDING)
           .size(BAR_BUTTON_SIZE),
-        tint = AppTheme.colors.icon
+        tint = AppTheme.colors.textPrimary
       )
-    } else {
-      // 有附件菜单时,加号变成真正的入口:点开列出「请求体 / 角色 / 模式」等
-      Box(Modifier.align(Alignment.CenterVertically)) {
-        Icon(
-          painterResource(R.drawable.ui_plus_frame),
-          contentDescription = "附件",
-          Modifier
-            .clickable { attachOpen = true }
-            .padding(BAR_BUTTON_PADDING)
-            .size(BAR_BUTTON_SIZE),
-          tint = AppTheme.colors.icon
-        )
-        DropdownMenu(
-          expanded = attachOpen,
-          onDismissRequest = { attachOpen = false },
-          offset = DpOffset((-104).dp, 0.dp),
-        ) {
-          attachItems.forEach { item ->
-            DropdownMenuItem(
-              onClick = {
-                attachOpen = false
-                item.onClick()
-              }
-            ) {
-              Icon(
-                painterResource(item.icon),
-                contentDescription = item.label,
-                Modifier.size(20.dp),
-                tint = AppTheme.colors.icon
-              )
-              Spacer(Modifier.width(12.dp))
-              Text(item.label, fontSize = 15.sp, color = AppTheme.colors.textPrimary)
-            }
-          }
-        }
-      }
     }
     SendButton(
       modifier = Modifier.align(Alignment.CenterVertically),
@@ -564,6 +714,9 @@ fun ChatBottomBar(
     )
   }
 }
+
+/** 面板展开时加号转成的角度(转 45° 就是「×」)。 */
+private const val PLUS_OPEN_ROTATION = 45f
 
 /**
  * 输入框右侧的发送按钮:有文字时从右边「长出来」。

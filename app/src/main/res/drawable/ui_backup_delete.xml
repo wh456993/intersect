@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 「删除全部」按钮的图标:垃圾桶 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <path
+      android:pathData="M4.8,7.4H19.2"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.8"
+      android:strokeLineCap="round" />
+  <path
+      android:pathData="M9.6,7.4V5.8A1.4,1.4 0 0 1 11,4.4H13A1.4,1.4 0 0 1 14.4,5.8V7.4"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.8"
+      android:strokeLineCap="round" />
+  <path
+      android:pathData="M6.7,7.4L7.4,19.1A1.6,1.6 0 0 0 9,20.6H15A1.6,1.6 0 0 0 16.6,19.1L17.3,7.4"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.8"
+      android:strokeLineCap="round"
+      android:strokeLineJoin="round" />
+  <path
+      android:pathData="M10.4,11V17.2M13.6,11V17.2"
+      android:fillColor="#00000000"
+      android:strokeColor="#FF000000"
+      android:strokeWidth="1.8"
+      android:strokeLineCap="round" />
+</vector>

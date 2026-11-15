@@ -17,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.reimei.intersect.MainViewModel
 import com.reimei.intersect.R
 import com.reimei.intersect.data.BackgroundSetting
 import com.reimei.intersect.data.DevMode
@@ -34,6 +35,7 @@ import com.reimei.intersect.ui.theme.AppTheme
  * 语言与明暗都只显示当前值,点进去是同一个版式的选择页:
  * [LanguagePage](中文 / English / 跟随系统)与 [ThemePage](浅色 / 深色 / 跟随系统)。
  * 后台常驻与最近任务隐藏在改动的当下就去启停服务 / 调整任务卡片;
+ * 「测试反馈」是给非技术测试员的黑匣子入口(生成日志报告 → 用 QQ 发出去);
  * 最后一项是开发者入口,点进去直接进开发者控制台。
  */
 @Composable
@@ -47,6 +49,8 @@ fun SettingsPage(
   // 语言 / 外观两个选择页都盖在设置页之上,按这两个状态推入 / 退出
   var showLanguage by remember { mutableStateOf(false) }
   var showTheme by remember { mutableStateOf(false) }
+  /** 测试反馈页:与本页同一层,从右侧推入。 */
+  var showFeedback by remember { mutableStateOf(false) }
 
   Box(modifier.fillMaxSize()) {
     Column(
@@ -98,6 +102,10 @@ fun SettingsPage(
         //   onCheckedChange = { DevMode.setEnabled(context, it) }
         // )
         // SettingsDivider()
+        SettingsDivider()
+        // 测试反馈:非技术测试员唯一的入口 —— 生成日志报告后用 QQ 发回来,不需要服务器
+        SettingsRow(title = "测试反馈", value = "日志报告", onClick = { showFeedback = true })
+        SettingsDivider()
         SettingsRow(title = "开发者", onClick = onOpenDeveloper)
       }
     }
@@ -107,6 +115,9 @@ fun SettingsPage(
     }
     SlideOverlay(payload = Unit.takeIf { showTheme }) {
       ThemePage(onBack = { showTheme = false })
+    }
+    SlideOverlay(payload = Unit.takeIf { showFeedback }) {
+      FeedbackPage(onBack = { showFeedback = false })
     }
   }
 }
@@ -204,16 +215,21 @@ private fun SettingsRow(title: String, value: String? = null, onClick: () -> Uni
 
 /**
  * 开发者页:直接进开发者控制台,不再做口令验权。
+ *
+ * 控制台里的「压测面板」(TASK-04)要操作主聊天的真实会话与记忆库,所以把 [viewModel]
+ * 一路传下去 —— 只有它持有内存里那份活着的会话列表。
  */
 @Composable
 fun DeveloperPage(
   modifier: Modifier = Modifier,
+  viewModel: MainViewModel,
   intersectMode: RoleplayMode,
   onSwitchIntersectMode: (RoleplayMode) -> Unit,
   onBack: () -> Unit
 ) {
   DevConsole(
     modifier,
+    viewModel = viewModel,
     onBack = onBack,
     intersectMode = intersectMode,
     onSwitchIntersectMode = onSwitchIntersectMode

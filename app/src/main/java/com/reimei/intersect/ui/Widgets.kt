@@ -101,18 +101,23 @@ fun Modifier.blockTouchesThrough(): Modifier = pointerInput(Unit) {
  * [followsIme] 只给聊天输入栏用:键盘弹起时它跟着上移,顶栏留在原地。首页底部栏不参与——
  * 输入法 inset 是逐帧变化的,若它也读这份 inset,动画期间每一帧都会把身后整块首页
  * (Pager 的三页列表)重新测量一遍,而这些都是看不见的无效工作,正好拖慢输入法上滑。
+ *
+ * [reserveBottomSpace] 关掉底部让位:底栏下面还接着一块自己会让位的东西时用
+ * (聊天页的底部附件面板就是这种)。让位交给下面那块去做,否则底栏和它之间会多出一条
+ * 导航栏高度的缝,面板展开时看起来像输入框和面板被硬生生掰开。
  */
 @Composable
 fun TabBar(
   modifier: Modifier = Modifier,
   followsIme: Boolean = false,
+  reserveBottomSpace: Boolean = true,
   content: @Composable RowScope.() -> Unit
 ) {
   Row(
     modifier
       .fillMaxWidth()
       // 让位修饰符放在 background 之前,底部那块空白也涂上底栏底色
-      .bottomBarSpace(followsIme)
+      .then(if (reserveBottomSpace) Modifier.bottomBarSpace(followsIme) else Modifier)
       .background(AppTheme.colors.bottomBar)
       .padding(4.dp, 0.dp),
     content = content
