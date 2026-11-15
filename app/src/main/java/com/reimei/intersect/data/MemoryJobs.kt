@@ -80,8 +80,9 @@ object MemoryJobs {
       apiKey = apiKey,
       rounds = MemoryRounds.texts(targets, firstNumber),
       targetTokens = state.targetTokens,
-      // 总结规则:开发者模式下可以在记忆库页改成自己的版本
-      template = MemoryPromptStore.template(),
+      // 总结规则:这个角色自己的聊天页 → 附件 → 记忆设置里可以改成自己的版本。
+      // 必须带 friendId:提示词是按角色存的,传错就变成「拿别人的口径写这段记忆」。
+      template = MemoryPromptStore.template(context, friendId),
       // 元信息:这一批对话结束时的状态。AI 据此在记忆正文里写状态变化,并按剧情决定 buff 词条
       meta = effectiveMeta(context, friendId),
     )

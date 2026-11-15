@@ -815,7 +815,7 @@ fun DevConsole(
       )
     }
 
-    // 记忆库:与主聊天同一页(即时记忆层 / 时间线索引层 / 长期记忆层)。
+    // 记忆库:与主聊天同一页(即时记忆层 / 引导线索层 / 长期记忆层)。
     // 控制台没有通讯录里的角色,记忆挂在 DEV_CONSOLE_ID 上,和任何好友互不相干;
     // 总结用的轮次从控制台自己的聊天记录里按「用户一句 + 模型一句」分组。
     val memoryOffset by animateFloatAsState(
@@ -829,8 +829,9 @@ fun DevConsole(
       MemoryLibraryPage(
         Modifier.percentOffsetX(memoryOffset),
         friendId = DEV_CONSOLE_ID,
-        apiKeyProvider = { resolveKeyObject() },
-        roundsProvider = { consoleRounds() },
+        // 控制台的总结仍走旧链路(MemoryJobs → SharedPreferences),这两个页签只读 memory.db
+        note = "控制台的总结写的是旧版记忆库,这里只读 memory.db,所以通常是空的;" +
+          "要测真实数据请用「压测面板」选一个主聊天的角色。",
         onBack = { showMemory = false }
       )
     }
@@ -1133,7 +1134,7 @@ private fun DevCharacterInfoPage(
         CharacterDivider()
         CharacterEntryRow(
           title = "记忆库",
-          detail = "即时记忆 / 时间线索引 / 长期记忆",
+          detail = "即时记忆 / 引导线索 / 长期记忆",
           onClick = onOpenMemory
         )
         CharacterDivider()

@@ -84,6 +84,9 @@ class MemoryRepository(private val dao: MemoryDao) {
 
   suspend fun latestNode(friendId: String): NodeSummaryEntity? = dao.latestNode(friendId)
 
+  /** 全部大总结(旧的在前),给记忆库页的「引导线索层」展示用。 */
+  suspend fun allNode(friendId: String): List<NodeSummaryEntity> = dao.allNode(friendId)
+
   suspend fun hasNode(friendId: String, fromRound: Int, toRound: Int): Boolean =
     dao.nodeCount(friendId, fromRound, toRound) > 0
 

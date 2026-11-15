@@ -43,7 +43,7 @@ object MemorySummarizer {
   /**
    * 内置的总结规则模板。
    *
-   * 开发者模式下可以在记忆库页把它换成自己的版本(见 [MemoryPromptStore]);
+   * 可以在**这个角色自己的聊天页 → 附件 → 记忆设置**里换成自己的版本(见 [MemoryPromptStore]);
    * 文本里的 `{target}` / `{min}` 发请求前会被换成滑块的长度上限与固定下限(250 token)。
    * 末尾接 [MetaInfo.SUMMARY_RULES]:告诉模型元信息块怎么读、buff 词条怎么定。
    * (因为它引用了 [MetaInfo] 里的规则常量,这里不是 `const`。)
@@ -138,7 +138,7 @@ object MemorySummarizer {
    *
    * [rounds] 是这一批轮次的原文(每项一轮,已按「第 N 轮」排好);
    * [targetTokens] 是滑块定下的长度上限;[template] 是 system 里的总结规则
-   * (开发者模式可以在记忆库页改,见 [MemoryPromptStore])。
+   * (聊天页 → 附件 → 记忆设置里按角色改,见 [MemoryPromptStore])。
    * 缺 KEY / 模型名 / 地址时直接说缺哪一项,不发注定失败的请求。
    */
   suspend fun summarize(

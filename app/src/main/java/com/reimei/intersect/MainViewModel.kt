@@ -493,7 +493,7 @@ class MainViewModel : ViewModel() {
     closeItemManager()
   }
 
-  /** 打开某角色的记忆库页(即时记忆层 / 时间线索引层 / 长期记忆层)。 */
+  /** 打开某角色的记忆库页(即时记忆层 / 引导线索层 / 长期记忆层)。 */
   fun openMemory(friendId: String) {
     memoryFriendId = friendId
   }

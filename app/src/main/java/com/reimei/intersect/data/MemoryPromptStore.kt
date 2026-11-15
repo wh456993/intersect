@@ -2,24 +2,28 @@ package com.reimei.intersect.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 /**
- * 总结记忆提示词(即时记忆层的 system prompt)的自定义开关与文本。
+ * 总结记忆提示词(即时记忆层的 system prompt)的自定义开关与文本,**按角色隔离**。
  *
- * 默认用 [MemorySummarizer.DEFAULT_TEMPLATE];开发者模式下可以在记忆库页把它换成自己的版本
- * (例如要求按时间线写、要求保留情绪变化)。文本里的 `{target}` / `{min}` 在发请求时会被
- * 换成滑块的长度上限与固定下限(250 token),所以换模板之后滑块仍然起作用。
+ * 默认用 [MemorySummarizer.DEFAULT_TEMPLATE];在**这个角色自己的聊天页 → 附件 → 记忆设置**里
+ * 可以把它换成自己的版本(例如要求按时间线写、要求保留情绪变化)。文本里的 `{target}` /
+ * `{min}` 在发请求时会被换成长度上限与固定下限(250 token),所以换模板之后滑块仍然起作用。
  *
- * 全局一份(不按角色分):它是「怎么总结」的规则,与具体某个角色无关;
- * 想给单个角色换口径时改完总结完再改回来即可。
+ * 为什么按角色分(以前的实现是全局一份):
+ * 这条规则挂在界面上是「这个角色的记忆怎么写」,用户在 A 的聊天里改它,不该把 B 的记忆
+ * 口径一起改掉 —— 一旦全局,两个角色就会互相串味,而且改完还没地方看出是谁的规则。
+ * 现在键名带上 friendId,读写都必须带角色 id,`template(context, friendId)` 里的 friendId
+ * 由总结任务传入([MemoryJobs.run] 手上就是触发这次总结的那个角色)。
+ *
+ * 老版本存下的全局键(`enabled` / `prompt`)不再读取:那是一个全局值,分不清属于哪个角色,
+ * 硬塞给所有角色等于让它们共享同一条自定义口径。升级后每个角色都从内置模板开始,
+ * 各自写各自的。
  */
 object MemoryPromptStore {
   private const val PREFS = "memory_prompt"
-  private const val KEY_ENABLED = "enabled"
-  private const val KEY_PROMPT = "prompt"
+  private const val KEY_ENABLED_PREFIX = "enabled_"
+  private const val KEY_PROMPT_PREFIX = "prompt_"
 
   /**
    * 模板长度上限。
@@ -30,36 +34,36 @@ object MemoryPromptStore {
    */
   const val MAX_LENGTH = 4000
 
-  /** 开关:关着时一律用内置模板(这样内置模板升级了能跟着变)。 */
-  var enabled by mutableStateOf(false)
-    private set
-
-  /** 用户写的模板;空串表示还没写过。 */
-  var prompt by mutableStateOf("")
-    private set
-
   private var prefs: SharedPreferences? = null
 
   fun init(context: Context) {
     if (prefs != null) return
-    val p = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-    prefs = p
-    enabled = p.getBoolean(KEY_ENABLED, false)
+    prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+  }
+
+  /** 这个角色是否在用自定义模板。从没设过 / 角色 id 为空时为 false(用内置模板)。 */
+  fun enabled(context: Context, friendId: String): Boolean {
+    if (friendId.isBlank()) return false
+    return prefsOf(context).getBoolean(KEY_ENABLED_PREFIX + friendId, false)
+  }
+
+  /** 这个角色写的模板;空串表示还没写过。 */
+  fun prompt(context: Context, friendId: String): String {
+    if (friendId.isBlank()) return ""
     // 老版本存下的超长文本也要在读取时收进上限:否则编辑框一敲字就会从尾部剪掉一大段,
     // 而实际发出去的模板又是没收过的原文 —— 三处必须同源
-    prompt = cap(p.getString(KEY_PROMPT, "").orEmpty())
+    return cap(prefsOf(context).getString(KEY_PROMPT_PREFIX + friendId, "").orEmpty())
   }
 
-  fun setEnabled(context: Context, value: Boolean) {
-    enabled = value
-    prefsOf(context).edit().putBoolean(KEY_ENABLED, value).apply()
+  fun setEnabled(context: Context, friendId: String, value: Boolean) {
+    if (friendId.isBlank()) return
+    prefsOf(context).edit().putBoolean(KEY_ENABLED_PREFIX + friendId, value).apply()
   }
 
-  fun setPrompt(context: Context, text: String) {
+  fun setPrompt(context: Context, friendId: String, text: String) {
+    if (friendId.isBlank()) return
     // 两边(编辑框与落盘)用同一个上限:粘贴进来就会被裁,不会出现「写进去的比看到的多」
-    val capped = cap(text)
-    prompt = capped
-    prefsOf(context).edit().putString(KEY_PROMPT, capped).apply()
+    prefsOf(context).edit().putString(KEY_PROMPT_PREFIX + friendId, cap(text)).apply()
   }
 
   /**
@@ -80,7 +84,8 @@ object MemoryPromptStore {
   }
 
   /** 编辑框里的初值:写过就用写过的,没写过就从内置模板开始改。 */
-  fun draft(): String = cap(prompt.ifBlank { MemorySummarizer.DEFAULT_TEMPLATE })
+  fun draft(context: Context, friendId: String): String =
+    cap(prompt(context, friendId).ifBlank { MemorySummarizer.DEFAULT_TEMPLATE })
 
   /**
    * 给某组开关 + 文本判断「实际生效的是不是自定义模板」。
@@ -90,9 +95,11 @@ object MemoryPromptStore {
    */
   fun isCustom(enabled: Boolean, prompt: String): Boolean = enabled && prompt.isNotBlank()
 
-  /** 实际生效的模板:开关关着、或者写空了,都回到内置模板。 */
-  fun template(): String =
-    if (isCustom(enabled, prompt)) cap(prompt) else MemorySummarizer.DEFAULT_TEMPLATE
+  /** 这个角色实际生效的模板:开关关着、或者写空了,都回到内置模板。 */
+  fun template(context: Context, friendId: String): String {
+    val text = prompt(context, friendId)
+    return if (isCustom(enabled(context, friendId), text)) cap(text) else MemorySummarizer.DEFAULT_TEMPLATE
+  }
 
   private fun prefsOf(context: Context): SharedPreferences {
     init(context)

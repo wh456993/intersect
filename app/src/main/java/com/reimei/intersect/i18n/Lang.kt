@@ -56,8 +56,17 @@ private fun matchPattern(zh: String): String {
     val match = rule.first.matchEntire(zh) ?: continue
     return rule.second(match)
   }
+  // 备份规模这类「A · B · C」是运行时拼出来的,整串查不到规则:拆开各翻各的再拼回去
+  val raw = zh.split(SEGMENT_SEP)
+  if (raw.size > 1) {
+    val parts = raw.map { part -> EnStrings.exact[part] ?: matchPattern(part) }
+    if (parts != raw) return parts.joinToString(SEGMENT_SEP)
+  }
   return zh
 }
+
+/** 多段文案的分隔符(规模概览、状态条用它把几个独立片段拼成一行)。 */
+private const val SEGMENT_SEP = " · "
 
 private val HAS_CJK = Regex("[\\u4e00-\\u9fff]")
 

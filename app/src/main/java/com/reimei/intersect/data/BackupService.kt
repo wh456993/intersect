@@ -29,6 +29,18 @@ data class ExportedBackup(
   val counts: BackupCounts,
 )
 
+/**
+ * 导出选择器里的一行:一个可以被选中的角色卡或会话(选择器是单选,一次导一个角色)。
+ *
+ * [id] 是实体在存储层的稳定标识(角色卡与会话都用角色 id,会话就是以对方为键),
+ * 导出时按它过滤;[user] 用来画头像与名字;[preview] 只有会话用得上(最后一条消息),角色卡为 null。
+ */
+data class BackupPickItem(
+  val id: String,
+  val user: User,
+  val preview: String? = null,
+)
+
 /** 本机各类数据现在有多少条(备份页的每张卡片都要显示)。 */
 data class BackupStats(
   val chats: Int = 0,
@@ -71,8 +83,12 @@ data class RestoreResult(
 /**
  * 数据备份的编排层:收集某一类数据 → 打包成明文 JSON → 落盘,以及读文件 → 写回各 Store。
  *
- * 四类内容各自独立成一份文件([BackupSection]):聊天记录、角色卡、记忆库、模型配置。
- * 导出固定是「这一类全带走」,恢复端按文件头声明的那一类写回,不会顺手动到别的数据。
+ * 备份页上是三张卡片 + 一份整包([BackupSection]):聊天记录、角色卡、模型配置,
+ * 以及把全部数据一起带走的「软件备份」。恢复端按文件头声明的那一类写回,不会顺手动到别的数据。
+ *
+ * 聊天记录与角色卡导出前先在界面上选一个具体的角色([pickList] 提供候选,[prepare] 按 id 过滤);
+ * 导出聊天记录时,**所选会话各自的记忆也跟着一起走** —— 记忆不再有单独的卡片。
+ * 模型配置与整包没有选择器,整类带走。
  *
  * 落到哪里由调用方决定:界面用系统的「保存到」选择器拿 Uri,再交给 [export] 写进去。
  * 这样文件在用户的文件管理器里看得见,卸载应用也不会连带删除。
@@ -91,14 +107,21 @@ object BackupService {
 
   /**
    * 收集 [section] 这一类内容 → 打包 → 序列化。不落盘:落到哪里由调用方决定。
+   *
+   * [selectedIds] 是导出选择器里选中的对象 id:[BackupSection.Characters] 时是角色卡 id,
+   * [BackupSection.Chats] 时是会话 id(即会话里的角色 id)。选择器是单选,所以集合里通常只有一项;
+   * 保留集合类型是为了这层不关心界面怎么选。
+   * **为 null 表示不筛选**(整类导出);给了集合就只导出其中的实体,绝不顺带全量塞进去。
+   * 空集合是合法的(导出成一份 0 条内容的备份),界面已经拦住「什么都没选」的情况。
    */
   fun prepare(
     context: Context,
     section: BackupSection,
     nowMs: Long = System.currentTimeMillis(),
+    selectedIds: Set<String>? = null,
   ): BackupArchive {
     val appContext = context.applicationContext
-    val payload = collect(appContext, section)
+    val payload = collect(appContext, section, selectedIds)
     val counts = payload.counts()
     val envelope = BackupEnvelope(
       epochMs = nowMs,
@@ -108,7 +131,27 @@ object BackupService {
       counts = counts,
       payload = BackupFormat.payloadJson(payload),
     )
-    return BackupArchive(envelope.toJson(), BackupFiles.fileName(section, nowMs), section, counts)
+    val name = BackupFiles.fileName(section, subjectOf(section, selectedIds, payload), nowMs)
+    return BackupArchive(envelope.toJson(), name, section, counts)
+  }
+
+  /**
+   * 文件名里的角色名:只在「明确只选了一个角色 / 一条会话」时才有。
+   *
+   * 整类导出(selectedIds 为 null)不能用内容里的第一个名字 —— 文件里装着所有角色,
+   * 拿小明的名字当文件名就是在说谎。模型配置与整包本来就只写应用名,不取 subject。
+   */
+  private fun subjectOf(
+    section: BackupSection,
+    selectedIds: Set<String>?,
+    payload: BackupPayload,
+  ): String? {
+    if (selectedIds?.size != 1) return null
+    return when (section) {
+      BackupSection.Characters -> payload.characters?.firstOrNull()?.name
+      BackupSection.Chats -> payload.chats?.firstOrNull()?.friend?.name
+      BackupSection.Memories, BackupSection.ApiKeys, BackupSection.Full -> null
+    }
   }
 
   /**
@@ -128,19 +171,71 @@ object BackupService {
     )
   }
 
-  /** 这一类内容的全部数据。 */
-  private fun collect(context: Context, section: BackupSection): BackupPayload = when (section) {
+  /**
+   * 导出选择器要列的候选:角色卡是全部角色,聊天记录是全部会话(带最后一条消息的预览)。
+   *
+   * 模型配置与整包没有选择器(整类导出),返回空列表。
+   */
+  fun pickList(context: Context, section: BackupSection): List<BackupPickItem> {
+    val appContext = context.applicationContext
+    return when (section) {
+      BackupSection.Characters ->
+        FriendsStore.load(appContext).map { BackupPickItem(id = it.id, user = it) }
+      BackupSection.Chats ->
+        (ChatStore.load(appContext) ?: emptyList()).map { chat ->
+          BackupPickItem(
+            id = chat.friend.id,
+            user = chat.friend,
+            preview = chat.msgs.lastOrNull()?.text?.takeIf { it.isNotBlank() },
+          )
+        }
+      BackupSection.Memories, BackupSection.ApiKeys, BackupSection.Full -> emptyList()
+    }
+  }
+
+  /** 这一类内容的数据;[selectedIds] 非 null 时只取其中的实体。 */
+  private fun collect(
+    context: Context,
+    section: BackupSection,
+    selectedIds: Set<String>? = null,
+  ): BackupPayload = when (section) {
+    // 名字跟着会话走:带走的会话,它自己的那份记忆也一起带走。
+    // 这里不带头像(角色卡归属另一份备份):图片一张就是几百 KB,而恢复会话时并不会用到它们。
     BackupSection.Chats -> {
-      val chats = ChatStore.load(context) ?: emptyList()
-      BackupPayload(chats = chats, avatars = avatarsOf(context, chats.map { it.friend }))
+      val chats = (ChatStore.load(context) ?: emptyList()).filterBy(selectedIds) { it.friend.id }
+      BackupPayload(
+        chats = chats,
+        memories = memoriesOf(context, chats.map { it.friend.id }.toSet()),
+      )
     }
     BackupSection.Characters -> {
-      val characters = FriendsStore.load(context)
+      val characters = FriendsStore.load(context).filterBy(selectedIds) { it.id }
       BackupPayload(characters = characters, avatars = avatarsOf(context, characters))
     }
     BackupSection.Memories -> BackupPayload(memories = MemoryStore.loadAll(context))
     BackupSection.ApiKeys -> BackupPayload(apiKeys = ApiKeyStore.load(context))
+    BackupSection.Full -> {
+      val characters = FriendsStore.load(context)
+      BackupPayload(
+        characters = characters,
+        chats = ChatStore.load(context) ?: emptyList(),
+        memories = MemoryStore.loadAll(context),
+        apiKeys = ApiKeyStore.load(context),
+        avatars = avatarsOf(context, characters),
+      )
+    }
   }
+
+  /** [friendIds] 这些角色在本机存的记忆;一条都没有时返回 null(备份里就不写这一段)。 */
+  private fun memoriesOf(
+    context: Context,
+    friendIds: Set<String>,
+  ): List<ImmediateMemoryState>? =
+    MemoryStore.loadAll(context).filter { it.friendId in friendIds }.takeIf { it.isNotEmpty() }
+
+  /** [ids] 为 null 时原样返回(整套导出);否则只留下 id 被勾选的实体,顺序不变。 */
+  private fun <T> List<T>.filterBy(ids: Set<String>?, idOf: (T) -> String): List<T> =
+    filterSelectedBy(this, ids, idOf)
 
   /** 头像:本地路径换台机器就失效了,得把图片本身带上。 */
   private fun avatarsOf(context: Context, users: List<User>): Map<String, ByteArray> {
@@ -212,7 +307,34 @@ object BackupService {
       BackupSection.Chats -> restoreChats(appContext, payload, mode, envelope.section)
       BackupSection.Memories -> restoreMemories(appContext, payload, mode, envelope.section)
       BackupSection.ApiKeys -> restoreApiKeys(appContext, payload, mode, envelope.section)
+      BackupSection.Full -> restoreAll(appContext, payload, mode, envelope.section)
     }
+  }
+
+  /** 整包恢复:四段各按同一个 [mode] 写回一次,彼此不串。 */
+  private fun restoreAll(
+    context: Context,
+    payload: BackupPayload,
+    mode: RestoreMode,
+    section: BackupSection,
+  ): RestoreResult {
+    val characters = restoreCharacters(context, payload, mode, section)
+    // 记忆统一交给 restoreMemories 处理:否则同一批记忆会被写两次、完成提示里的「记忆 +N」永远是 0
+    val chats = restoreChats(context, payload, mode, section, withMemories = false)
+    val memories = restoreMemories(context, payload, mode, section, missingAsEmpty = true)
+    val apiKeys = restoreApiKeys(context, payload, mode, section)
+    return RestoreResult(
+      mode = mode,
+      section = section,
+      charactersAdded = characters.charactersAdded,
+      charactersUpdated = characters.charactersUpdated,
+      chatsAdded = chats.chatsAdded,
+      chatsMerged = chats.chatsMerged,
+      messagesAdded = chats.messagesAdded,
+      memoriesAdded = memories.memoriesAdded,
+      apiKeysAdded = apiKeys.apiKeysAdded,
+      apiKeysUpdated = apiKeys.apiKeysUpdated,
+    )
   }
 
   /** 清空本机全部聊天记录,返回清掉的会话数。 */
@@ -285,11 +407,18 @@ object BackupService {
     return RestoreResult(mode, section, apiKeysAdded = added, apiKeysUpdated = updated)
   }
 
+  /**
+   * 写回会话。
+   *
+   * [withMemories] 为 true 时会顺手把 [payload] 里这几条会话的记忆也写回(聊天记录备份就是这个形态);
+   * 整包恢复传 false —— 那里记忆由 [restoreMemories] 统一处理。
+   */
   private fun restoreChats(
     context: Context,
     payload: BackupPayload,
     mode: RestoreMode,
     section: BackupSection,
+    withMemories: Boolean = true,
   ): RestoreResult {
     val incoming = payload.chats ?: return RestoreResult(mode, section)
     val existing = ChatStore.load(context) ?: emptyList()
@@ -329,29 +458,79 @@ object BackupService {
       }
     }
     ChatStore.save(context, merged.values.toList())
+    // 记忆跟着会话走:导聊天记录时会带上这些会话各自的记忆,恢复时也只写回它们
+    val memoriesAdded = if (!withMemories) 0 else restoreMemoriesFor(
+      context = context,
+      chatIds = incoming.map { it.friend.id }.toSet(),
+      states = payload.memories.orEmpty(),
+      mode = mode,
+    )
     return RestoreResult(
       mode = mode,
       section = section,
       chatsAdded = added,
       chatsMerged = mergedChats,
       messagesAdded = messagesAdded,
+      memoriesAdded = memoriesAdded,
     )
   }
 
+  /**
+   * 把 [states] 里的记忆逐个写回本机,返回实际写进去的条数。
+   *
+   * 合并模式只补本机**还没有总结**的那几个角色 —— 本机已有总结的是这段对话后来攒的,盖回去等于抹掉新记忆。
+   * 判据用的是「有没有总结」而不是「prefs 里有没有这条」:每轮对话、每次拖滑块都会落一条空 state,
+   * 拿条目存在性当判据会把备份里的真记忆静默跳过。
+   *
+   * 覆盖模式只动 [chatIds] 这几条会话,并且备份里没带记忆的那几条会把本机那仍清掉 ——
+   * 那些总结描述的是已经被覆盖掉的对话,留着只会在下次发消息时被当成真的历史注入。
+   * 同一份文件里没涉及的其它角色一律不动(一份只有一条会话的备份,不该把别人的记忆清空)。
+   */
+  private fun restoreMemoriesFor(
+    context: Context,
+    chatIds: Set<String>,
+    states: List<ImmediateMemoryState>,
+    mode: RestoreMode,
+  ): Int {
+    val existing = MemoryStore.loadAll(context).associateBy { it.friendId }
+    val incomingById = states.filter { it.friendId in chatIds }.associateBy { it.friendId }
+    val targets = incomingById.values.filter { state ->
+      val local = existing[state.friendId]
+      mode == RestoreMode.Replace || local == null || local.summaries.isEmpty()
+    }
+    targets.forEach { MemoryStore.save(context, it) }
+    if (mode == RestoreMode.Replace) {
+      chatIds.forEach { id ->
+        if (id !in incomingById && existing[id] != null) MemoryStore.remove(context, id)
+      }
+    }
+    return targets.size
+  }
+
+  /**
+   * 写回记忆。
+   *
+   * [missingAsEmpty] 为 true 时把「没有这一段」当成「记忆是空的」:整包覆盖时它就是真的空,
+   * 不能因为文件里没写而把本机记忆留着。单独导入记忆库备份时仍是 null 就直接返回(什么都不做)。
+   */
   private fun restoreMemories(
     context: Context,
     payload: BackupPayload,
     mode: RestoreMode,
     section: BackupSection,
+    missingAsEmpty: Boolean = false,
   ): RestoreResult {
-    val incoming = payload.memories ?: return RestoreResult(mode, section)
+    val incoming = payload.memories ?: if (!missingAsEmpty) return RestoreResult(mode, section) else emptyList()
     if (mode == RestoreMode.Replace) {
       MemoryStore.replaceAll(context, incoming)
       return RestoreResult(mode, section, memoriesAdded = incoming.size)
     }
-    // 合并只补本机没有的角色记忆:本机已有的那份是这段对话后来攒的,盖回去等于把新记忆抹掉
+    // 合并只补本机还没有总结的角色:本机已有的那份是这段对话后来攒的,盖回去等于把新记忆抹掉
     val existing = MemoryStore.loadAll(context).associateBy { it.friendId }
-    val additions = incoming.filter { existing[it.friendId] == null }
+    val additions = incoming.filter { state ->
+      val local = existing[state.friendId]
+      local == null || local.summaries.isEmpty()
+    }
     if (additions.isEmpty()) return RestoreResult(mode, section)
     additions.forEach { MemoryStore.save(context, it) }
     return RestoreResult(mode, section, memoriesAdded = additions.size)
@@ -400,3 +579,15 @@ internal fun mergeBackupMsgs(target: Chat, source: Chat): Int {
 }
 
 private fun msgsKey(msg: Msg): String = "${msg.from.id}\u0000${msg.text}"
+
+/**
+ * 按勾选结果过滤导出内容:[ids] 为 null 表示整套带走,[ids] 非 null 时只留下 id 在其中的实体。
+ *
+ * 抽成纯函数是为了能被单测钉住 —— 「导出只带勾中的那些,绝不顺带全量塞进去」是这一层的硬约束,
+ * 一旦有人把它改成「空集合当成不过滤」,用户就会在毫无提示的情况下把全部角色/会话导出出去。
+ */
+internal fun <T> filterSelectedBy(
+  items: List<T>,
+  ids: Set<String>?,
+  idOf: (T) -> String,
+): List<T> = if (ids == null) items else items.filter { idOf(it) in ids }

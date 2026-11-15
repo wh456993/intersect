@@ -102,7 +102,7 @@ fun SettingsPage(
         //   onCheckedChange = { DevMode.setEnabled(context, it) }
         // )
         // SettingsDivider()
-        SettingsDivider()
+        // 恢复上面的开关时记得在这里补一条 SettingsDivider(),否则它会和「测试反馈」粘在一起
         // 测试反馈:非技术测试员唯一的入口 —— 生成日志报告后用 QQ 发回来,不需要服务器
         SettingsRow(title = "测试反馈", value = "日志报告", onClick = { showFeedback = true })
         SettingsDivider()

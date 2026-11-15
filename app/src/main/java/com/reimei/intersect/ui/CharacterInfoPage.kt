@@ -144,7 +144,7 @@ fun CharacterInfoPage(
             } else {
               CharacterEntryRow(
                 title = "记忆库",
-                detail = "即时记忆 / 时间线索引 / 长期记忆",
+                detail = "即时记忆 / 引导线索 / 长期记忆",
                 onClick = onOpenMemory
               )
             }

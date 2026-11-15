@@ -142,11 +142,17 @@ class BackupFormatTest {
     )
   }
 
-  /** 规模概览只出一句:一份文件只装一类内容,拼成一长串就查不到翻译表了。 */
+  /**
+   * 规模概览:单类内容只出一句;整包与带记忆的会话备份拼成多段,
+   * 分段由 Lang 的规则回退逐段翻译(拼成一整串是查不到规则表的)。
+   */
   @Test
-  fun countsSummaryIsSingleLine() {
+  fun countsSummaryJoinsSegments() {
     assertEquals("1 个会话(2 条消息)", payload.counts().run {
       copy(characters = 0, memories = 0, apiKeys = 0).summary()
+    })
+    assertEquals("1 个角色 · 1 个会话(2 条消息)", payload.counts().run {
+      copy(memories = 0, apiKeys = 0).summary()
     })
     assertEquals("没有内容", BackupCounts().summary())
   }

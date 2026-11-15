@@ -15,7 +15,7 @@ import java.util.Locale
  * 之前是靠猜目录(用户主目录 → 应用外部目录 → 应用私有目录)硬写,一旦没拿到全部文件权限
  * 就会静默退回到应用私有目录,卸载应用时备份跟着一起没了 —— 所以写入只保留 SAF 这一条路。
  *
- * 备份是**明文 JSON**(`.json`),不再有 `.ibk` 那种加密容器:文件名里带上内容的类别,
+ * 备份是**明文 JSON**(`.json`),不再有 `.ibk` 那种加密容器:文件名直接说明这是谁、什么内容,
  * 用户在自己的文件管理器里一眼就能看出哪份是什么、也能直接用文本编辑器打开。
  */
 object BackupFiles {
@@ -27,10 +27,61 @@ object BackupFiles {
   /** 「打开文件」选择器的过滤条件:各家文件管理器给 .json 报的 MIME 不完全一致,都给上。 */
   val PICKER_TYPES = arrayOf("application/json", "text/plain", "application/octet-stream")
 
-  fun fileName(section: BackupSection, nowMs: Long = System.currentTimeMillis()): String {
+  /** 文件名里的软件正式名:只有模型配置与整包备份用得上(角色卡 / 聊天记录只看角色名)。 */
+  const val APP_NAME = "Intersect"
+
+  /** 角色名在文件名里最多占多少字:再长会被截断,免得撑爆文件管理器的显示。 */
+  private const val MAX_SUBJECT = 40
+
+  /** 各文件系统都不接受的字符:角色名是用户随手写的,不能原样进文件名。 */
+  private val ILLEGAL = charArrayOf('\\', '/', ':', '*', '?', '"', '<', '>', '|')
+
+  /**
+   * 导出文件名:**角色名 + 内容类别 + 导出时间**,不带应用名。
+   *
+   * - 聊天记录 / 角色卡 → `小红-聊天记录-20250101-120000.json`、`小红-角色卡-20250101-120000.json`
+   * - 模型配置 → `Intersect-API_Key-20250101-120000.json`
+   * - 整包 → `Intersect-软件备份-20250101-120000.json`
+   *
+   * [subject] 是所选角色 / 会话的角色名;为 null(整类导出)时只留类别名。
+   */
+  fun fileName(
+    section: BackupSection,
+    subject: String? = null,
+    nowMs: Long = System.currentTimeMillis(),
+  ): String {
     val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(nowMs))
-    return "intersect-${section.fileTag}-$stamp$EXTENSION"
+    val head = when (section) {
+      BackupSection.Chats -> listOfNotNull(safeSubject(subject), "聊天记录")
+      BackupSection.Characters -> listOfNotNull(safeSubject(subject), "角色卡")
+      BackupSection.Memories -> listOfNotNull(safeSubject(subject), "记忆库")
+      BackupSection.ApiKeys -> listOf(APP_NAME, "API_Key")
+      BackupSection.Full -> listOf(APP_NAME, "软件备份")
+    }.joinToString("-")
+    return "$head-$stamp$EXTENSION"
   }
+
+  /** 把角色名收拾成能进文件名的样子:去掉保留字符与控制字符、掐掉首尾空白与点、限长。 */
+  private fun safeSubject(raw: String?): String? {
+    val cleaned = raw.orEmpty()
+      // 控制字符(含 C1)与双向控制符都要去掉:后者能在文件管理器里把 .json 后缀“搬”到前面去
+      .filter { !it.isISOControl() && it !in BIDI_CONTROLS }
+      // 路径分隔符与各文件系统的保留字符
+      .filter { it !in ILLEGAL }
+      .trim()
+      .trim('.')
+    val cut = if (cleaned.length > MAX_SUBJECT) {
+      // 截断不能把 emoji 这类代理对切成半个:留下高位半截会变成乱码方块
+      val head = cleaned.take(MAX_SUBJECT)
+      if (head.last().isHighSurrogate()) head.dropLast(1) else head
+    } else {
+      cleaned
+    }
+    return cut.trim().trim('.').ifEmpty { null }
+  }
+
+  /** 双向控制符:U+202A–U+202E / U+2066–U+2069。它们不占宽度,却会骗过文件名显示。 */
+  private const val BIDI_CONTROLS = "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069"
 
   // ------------------------------------------------------------ 选择器给的 Uri
 

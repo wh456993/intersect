@@ -28,8 +28,8 @@ import com.reimei.intersect.R
 import com.reimei.intersect.data.BackupDocument
 import com.reimei.intersect.data.BackupDrafts
 import com.reimei.intersect.data.BackupFiles
-import com.reimei.intersect.data.BackupFormat
 import com.reimei.intersect.data.BackupFormatException
+import com.reimei.intersect.data.BackupPickItem
 import com.reimei.intersect.data.BackupPreview
 import com.reimei.intersect.data.BackupSection
 import com.reimei.intersect.data.BackupService
@@ -43,8 +43,9 @@ import kotlinx.coroutines.withContext
 /**
  * 「数据备份」页。
  *
- * 四张卡片:聊天记录、角色卡、记忆库、模型配置。每一类都独立导出 / 导入,
+ * 三张卡片:聊天记录、角色卡、模型配置,再加一份「软件备份」整包。每一类都独立导出 / 导入,
  * 一份文件只装一类内容,互不影响 —— 只想带走角色设定就不会顺带把 API KEY 也发出去。
+ * 记忆没有单独的卡片:它跟着会话走,导出聊天记录时一起带走。
  *
  * 备份文件是**明文 `.json`**:没有口令、没有加密,用文本编辑器打开就能读。
  * 换机、排障都简单,代价是任何拿到文件的人也能读,所以页面上明确写着这一点。
@@ -66,7 +67,8 @@ fun BackupPage(
   var busy by remember { mutableStateOf<BackupSection?>(null) }
   var message by remember { mutableStateOf<BackupMessage?>(null) }
   var pending by remember { mutableStateOf<PendingRestore?>(null) }
-  var confirmClear by remember { mutableStateOf(false) }
+  // 导出选择器:null 表示没开着;放着「导出哪一类」与它可选的条目
+  var picker by remember { mutableStateOf<PickRequest?>(null) }
 
   // 待写入的备份刻意不放 remember:选择器盖住应用期间组合可能被销毁重建,
   // 放 remember 里那份内容会消失,回调就只能默默什么都不写(见 BackupDrafts 的说明)。
@@ -131,14 +133,21 @@ fun BackupPage(
     }
   }
 
-  fun startExport(section: BackupSection) {
+  /**
+   * 真正开始导出:[selectedIds] 为 null 表示整类导出(模型配置 / 软件备份),
+   * 否则只打包选中的那个角色卡 / 会话。
+   */
+  fun startExport(section: BackupSection, selectedIds: Set<String>? = null) {
     if (busy != null) return
     busy = section
     scope.launch {
       val outcome = runCatching {
         withContext(Dispatchers.IO) {
           // 打包 + 暂存都在选位置之前做完:选完位置之后可能连进程都不是原来那个了
-          BackupDrafts.stage(context, BackupService.prepare(context, section))
+          BackupDrafts.stage(
+            context,
+            BackupService.prepare(context, section, selectedIds = selectedIds)
+          )
         }
       }
       outcome.fold(
@@ -154,6 +163,31 @@ fun BackupPage(
           busy = null
           message = BackupMessage("导出失败", e.message ?: "未知错误")
         }
+      )
+    }
+  }
+
+  /**
+   * 点「导出」:聊天记录与角色卡先弹选择面板选一个角色,其它两类整类带走。
+   *
+   * 候选列表要读盘,所以这里先亮「忙碌」再读,读完才弹面板 ——
+   * 否则从点击到面板出现的那一瞬什么都没有发生,用户会以为没点上。
+   */
+  fun requestExport(section: BackupSection) {
+    if (busy != null) return
+    if (section != BackupSection.Chats && section != BackupSection.Characters) {
+      startExport(section)
+      return
+    }
+    busy = section
+    scope.launch {
+      val outcome = runCatching {
+        withContext(Dispatchers.IO) { BackupService.pickList(context, section) }
+      }
+      busy = null
+      outcome.fold(
+        onSuccess = { items -> picker = PickRequest(section, items) },
+        onFailure = { e -> message = BackupMessage("无法读取列表", e.message ?: "未知错误") }
       )
     }
   }
@@ -193,17 +227,6 @@ fun BackupPage(
     }
   }
 
-  fun clearChats() {
-    confirmClear = false
-    scope.launch {
-      val count = withContext(Dispatchers.IO) { BackupService.clearChats(context) }
-      refreshStats()
-      // 磁盘上的数据已经变了,让 ViewModel 重新读一遍
-      onRestored()
-      message = BackupMessage("已删除", "已清空 $count 个会话的全部聊天记录。")
-    }
-  }
-
   Column(
     modifier
       .fillMaxSize()
@@ -228,21 +251,15 @@ fun BackupPage(
 
       SectionCard(
         title = BackupSection.Chats.label,
-        subtitle = "跨格式备份、导出与恢复",
+        subtitle = "按角色导出,记忆随聊天记录一起带走",
         icon = R.drawable.ui_backup_history,
         summary = "当前共有 ${stats.chats} 条聊天记录(共 ${stats.messages} 条消息)。",
+        // 记忆没有单独的卡片了:把它有多少条写在这里,用户才知道跟着走的是什么
+        note = "当前共有 ${stats.memories} 条记忆(${stats.memoryOwners} 个角色)。",
         busy = busy == BackupSection.Chats,
-        onExport = { startExport(BackupSection.Chats) },
+        onExport = { requestExport(BackupSection.Chats) },
         onImport = { startImport() },
-      ) {
-        PillButton(
-          text = "删除全部",
-          icon = R.drawable.ui_backup_delete,
-          modifier = Modifier.fillMaxWidth(),
-          tint = AppTheme.colors.badge,
-          onClick = { confirmClear = true }
-        )
-      }
+      )
 
       Spacer(Modifier.height(12.dp))
 
@@ -252,19 +269,7 @@ fun BackupPage(
         icon = R.drawable.ui_dev_character,
         summary = "当前共有 ${stats.characters} 个角色卡。",
         busy = busy == BackupSection.Characters,
-        onExport = { startExport(BackupSection.Characters) },
-        onImport = { startImport() },
-      )
-
-      Spacer(Modifier.height(12.dp))
-
-      SectionCard(
-        title = BackupSection.Memories.label,
-        subtitle = "跨配置备份与恢复,保持思维链一致",
-        icon = R.drawable.ui_backup_memory,
-        summary = "当前共有 ${stats.memories} 条记忆(${stats.memoryOwners} 个角色)。",
-        busy = busy == BackupSection.Memories,
-        onExport = { startExport(BackupSection.Memories) },
+        onExport = { requestExport(BackupSection.Characters) },
         onImport = { startImport() },
       )
 
@@ -277,6 +282,20 @@ fun BackupPage(
         summary = "当前共有 ${stats.apiKeys} 个模型配置。",
         busy = busy == BackupSection.ApiKeys,
         onExport = { startExport(BackupSection.ApiKeys) },
+        onImport = { startImport() },
+      )
+
+      Spacer(Modifier.height(12.dp))
+
+      // 整包:不分类,把本机所有数据一起打走 —— 换机搬数据用,平时导一类就够
+      SectionCard(
+        title = BackupSection.Full.label,
+        subtitle = "把本机全部数据打成一份,换机时用",
+        icon = R.drawable.ui_backup_memory,
+        summary = "会把 ${stats.characters} 个角色、${stats.chats} 个会话" +
+          "(${stats.messages} 条消息)与 ${stats.apiKeys} 个模型配置一起打包。",
+        busy = busy == BackupSection.Full,
+        onExport = { startExport(BackupSection.Full) },
         onImport = { startImport() },
       )
     }
@@ -308,36 +327,19 @@ fun BackupPage(
     )
   }
 
-  if (confirmClear) {
-    AlertDialog(
-      onDismissRequest = { confirmClear = false },
-      title = { Text("删除全部聊天记录", fontSize = 16.sp, color = AppTheme.colors.textPrimary) },
-      text = {
-        Text(
-          "本机的 ${stats.chats} 个会话及其中的 ${stats.messages} 条消息会全部删除,无法恢复。\n\n角色卡、记忆库与模型配置不受影响。",
-          fontSize = 13.sp,
-          color = AppTheme.colors.textSecondary
-        )
-      },
-      confirmButton = {
-        Text(
-          "删除",
-          Modifier
-            .clickable { clearChats() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-          fontSize = 15.sp,
-          color = AppTheme.colors.badge
-        )
-      },
-      dismissButton = {
-        Text(
-          "取消",
-          Modifier
-            .clickable { confirmClear = false }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-          fontSize = 15.sp,
-          color = AppTheme.colors.textSecondary
-        )
+  // 导出选择面板:选好之后只导出那一个角色 / 会话
+  val request = picker
+  if (request != null) {
+    ExportPickerDialog(
+      title = "导出${request.section.label}",
+      items = request.items,
+      // 会话每行要一句副标题(最后一条消息);角色卡只看名字与头像
+      previewFallback = if (request.section == BackupSection.Chats) "还没有聊天记录" else "",
+      busy = busy == request.section,
+      onDismiss = { if (busy == null) picker = null },
+      onConfirm = { item ->
+        picker = null
+        startExport(request.section, setOf(item.id))
       }
     )
   }
@@ -365,23 +367,30 @@ private class BackupMessage(
   val detail: String? = null,
 )
 
+/** 已经读好候选、正等用户勾选的一份导出请求。 */
+private class PickRequest(
+  val section: BackupSection,
+  val items: List<BackupPickItem>,
+)
+
 /** 已经读出来、等用户确认要不要恢复的一份文件。 */
 private class PendingRestore(
   val document: BackupDocument,
   val preview: BackupPreview,
 )
 
-/** 一张卡片:图标 + 标题 + 副标题 + 现在有多少条 + 导出/导入按钮(可再加一行按钮)。 */
+/** 一张卡片:图标 + 标题 + 副标题 + 现在有多少条 + 导出/导入按钮。 */
 @Composable
 private fun SectionCard(
   title: String,
   subtitle: String,
   @DrawableRes icon: Int,
   summary: String,
+  /** 主数字下面的一句补充(如记忆条数),没有就不显示。 */
+  note: String? = null,
   busy: Boolean,
   onExport: () -> Unit,
   onImport: () -> Unit,
-  footer: @Composable (() -> Unit)? = null
 ) {
   Column(
     Modifier
@@ -415,6 +424,10 @@ private fun SectionCard(
     }
     Spacer(Modifier.height(16.dp))
     Text(summary, fontSize = 15.sp, color = AppTheme.colors.textPrimary)
+    note?.let {
+      Spacer(Modifier.height(4.dp))
+      Text(it, fontSize = 13.sp, color = AppTheme.colors.textSecondary)
+    }
     Spacer(Modifier.height(16.dp))
     Row(Modifier.fillMaxWidth()) {
       // 「导出 / 导入」各自占一半:两个按钮一样大,手指不用瞄准
@@ -433,10 +446,6 @@ private fun SectionCard(
         enabled = !busy,
         onClick = onImport
       )
-    }
-    if (footer != null) {
-      Spacer(Modifier.height(12.dp))
-      footer()
     }
   }
 }
@@ -566,8 +575,8 @@ private fun RestoreDialog(
               RestoreMode.Replace -> "覆盖:本机多出来的角色会被清掉,只留备份里的角色卡"
             }
             BackupSection.Chats -> when (mode) {
-              RestoreMode.Merge -> "合并:保留本机会话,只补充备份里多出来的消息"
-              RestoreMode.Replace -> "覆盖:本机多出来的会话会被清掉,只留备份里的聊天记录"
+              RestoreMode.Merge -> "合并:保留本机会话,只补充备份里多出来的消息;本机还没总结过记忆的角色会补上备份里的记忆"
+              RestoreMode.Replace -> "覆盖:本机多出来的会话会被清掉,只留备份里的聊天记录;备份里没带记忆的会话,本机记忆也会清掉"
             }
             BackupSection.Memories -> when (mode) {
               RestoreMode.Merge -> "合并:只补本机还没有记忆的角色,已有记忆保持不动"
@@ -576,6 +585,10 @@ private fun RestoreDialog(
             BackupSection.ApiKeys -> when (mode) {
               RestoreMode.Merge -> "合并:保留本机配置,补充备份里多出来的;同 id 的配置以备份为准"
               RestoreMode.Replace -> "覆盖:本机多出来的配置会被清掉,只留备份里的模型配置"
+            }
+            BackupSection.Full -> when (mode) {
+              RestoreMode.Merge -> "合并:保留本机全部数据,只补充备份里多出来的角色、消息与配置"
+              RestoreMode.Replace -> "覆盖:本机的角色卡、聊天记录(含记忆)与模型配置会被备份内容整份替换"
             }
           },
           fontSize = 12.sp,

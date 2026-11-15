@@ -100,9 +100,11 @@ fun ConversationPage(
   // 已点开「全部显示」:每条 AI 回复下面附带这一轮的记忆索引(角色 UID / 用户 UID / 落盘时间)
   var showMemory by remember(chat) { mutableStateOf(false) }
 
-  // 输入栏上方的面板:附件条 ⇄ 导演模式面板,两者共用同一个弹出位置(同一时刻只开一个)
+  // 输入栏上方的面板:附件条 ⇄ 导演模式面板 ⇄ 记忆设置面板,共用同一个弹出位置(同一时刻只开一个)
   var attachPanelOpen by remember(chat) { mutableStateOf(false) }
   var directorOpen by remember(chat) { mutableStateOf(false) }
+  // 记忆设置:调的是**当前这个角色**的总结提示词与长度上限(见 MemorySettingsSheet)
+  var memorySheetOpen by remember(chat) { mutableStateOf(false) }
   // 面板里的草稿只在面板开着时存在:关掉就丢,不会以「半截输入」的形态进请求体
   var sceneDraft by remember(chat) { mutableStateOf(SceneDraft()) }
   var sceneError by remember(chat) { mutableStateOf<String?>(null) }
@@ -121,13 +123,16 @@ fun ConversationPage(
 
   // 菜单开着时,返回先收起菜单;ConversationPage 比首页的预测性返回后注册,所以它优先
   BackHandler(enabled = menuMsg != null) { menuMsg = null }
-  // 附件 / 导演面板开着时,返回先收起面板(先收导演面板,再收附件条)
+  // 附件 / 导演 / 记忆设置面板开着时,返回先收起面板(先收回二级面板,再收附件条)
   BackHandler(enabled = attachPanelOpen) {
-    if (directorOpen) {
-      directorOpen = false
-      sceneError = null
-    } else {
-      attachPanelOpen = false
+    when {
+      memorySheetOpen -> memorySheetOpen = false
+      directorOpen -> {
+        directorOpen = false
+        sceneError = null
+      }
+
+      else -> attachPanelOpen = false
     }
   }
 
@@ -181,12 +186,22 @@ fun ConversationPage(
           onSheetOpenChange = { open ->
             attachPanelOpen = open
             directorOpen = false
+            memorySheetOpen = false
             sceneError = null
             // 每次打开都重读一次当前场景:面板外的 /time 指令也可能刚改过时钟
             if (open) sceneDraft = viewModel.sceneDraft(context, chat.friend.id)
           },
           sheet = {
-            if (directorOpen) {
+            if (memorySheetOpen) {
+              // 记忆设置:friendId 固定为当前会话的角色 —— 面板里没有任何切换角色的入口,
+              // 所以它改的必然只是这个角色的数据
+              MemorySettingsSheet(
+                viewModel = viewModel,
+                friendId = chat.friend.id,
+                characterName = chat.friend.name,
+                onBack = { memorySheetOpen = false },
+              )
+            } else if (directorOpen) {
               DirectorScenePanel(
                 draft = sceneDraft,
                 onDraftChange = { sceneDraft = it },
@@ -213,6 +228,14 @@ fun ConversationPage(
                     directorOpen = true
                     sceneError = null
                   })
+                  // 记忆设置:提示词 + 长度上限 + 清空,只作用于当前这个角色
+                  add(
+                    AttachEntry(
+                      label = "记忆设置",
+                      onClick = { memorySheetOpen = true },
+                      iconRes = R.drawable.ui_backup_memory,
+                    )
+                  )
                   // 开发者的「全部显示」和导演模式并列在同一个面板里
                   if (devMode) {
                     add(

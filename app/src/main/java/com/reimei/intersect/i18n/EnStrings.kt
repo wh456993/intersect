@@ -243,11 +243,21 @@ internal object EnStrings {
     "备份文件是明文 .json,不加密,导出时由你选择保存位置。" to
       "Backup files are plain .json and are not encrypted. You choose where to save them.",
     "角色卡" to "Characters",
+    "按角色导出,记忆随聊天记录一起带走" to
+      "Exported per character; memory travels with the chat history",
     "跨格式备份、导出与恢复" to "Cross-format backup, export and restore",
     "备份与恢复角色卡配置" to "Back up and restore character profiles",
     "跨配置备份与恢复,保持思维链一致" to
       "Back up and restore across setups, keeping the reasoning chain consistent",
     "模型配置" to "Model settings",
+    "没有内容" to "Nothing",
+    "软件备份" to "Full backup",
+    "把本机全部数据打成一份,换机时用" to
+      "Pack all data on this device into one file, for moving to a new phone",
+    "合并:保留本机全部数据,只补充备份里多出来的角色、消息与配置" to
+      "Merge: keep all data on this device and only add the extra characters, messages and settings from the backup",
+    "覆盖:本机的角色卡、聊天记录(含记忆)与模型配置会被备份内容整份替换" to
+      "Replace: characters, chat history (including memory) and model settings on this device are replaced by the backup",
     "备份与恢复所有模型设置,包括 API 密钥和参数" to
       "Back up and restore every model setting, including the API key and parameters",
     "合并:保留本机已有角色,补充备份里多出来的;同 id 的角色以备份为准" to
@@ -255,10 +265,12 @@ internal object EnStrings {
       "a character with the same id follows the backup",
     "覆盖:本机多出来的角色会被清掉,只留备份里的角色卡" to
       "Replace: characters that exist only on this device are removed, leaving only the backup",
-    "合并:保留本机会话,只补充备份里多出来的消息" to
-      "Merge: keep the chats on this device and only add the messages found in the backup",
-    "覆盖:本机多出来的会话会被清掉,只留备份里的聊天记录" to
-      "Replace: chats that exist only on this device are removed, leaving only the backup",
+    "合并:保留本机会话,只补充备份里多出来的消息;本机还没总结过记忆的角色会补上备份里的记忆" to
+      "Merge: keep the chats on this device and only add the messages found in the backup; " +
+        "characters whose memory is still empty here get the memory from the backup",
+    "覆盖:本机多出来的会话会被清掉,只留备份里的聊天记录;备份里没带记忆的会话,本机记忆也会清掉" to
+      "Replace: chats that exist only on this device are removed, leaving only the backup; " +
+        "chats whose backup carries no memory also lose their memory here",
     "合并:只补本机还没有记忆的角色,已有记忆保持不动" to
       "Merge: only fill in characters that have no memory on this device; existing memory is kept",
     "覆盖:本机所有角色的记忆都会被替换成备份里的内容" to
@@ -269,10 +281,43 @@ internal object EnStrings {
     "覆盖:本机多出来的配置会被清掉,只留备份里的模型配置" to
       "Replace: settings that exist only on this device are removed, leaving only the backup",
     "记忆库" to "Memory",
-    "即时记忆 / 时间线索引 / 长期记忆" to "Immediate memory / Timeline index / Long-term memory",
+    "即时记忆 / 引导线索 / 长期记忆" to "Immediate memory / Clues / Long-term memory",
     "即时记忆层" to "Immediate memory",
-    "时间线索引层" to "Timeline index",
+    "引导线索层" to "Clue layer",
     "长期记忆层" to "Long-term memory",
+    "还没有引导线索" to "No clues yet",
+    "输入关键字" to "Type a keyword",
+    "搜索" to "Search",
+    "检索中" to "Searching",
+    "检索中..." to "Searching...",
+    "没有召回任何内容" to "Nothing was recalled",
+    "检索失败" to "Search failed",
+    "输入关键字试试" to "Try a keyword",
+    "聊天片段" to "Chat snippet",
+    "记忆总结" to "Memory summary",
+    "记忆设置" to "Memory settings",
+    "总结提示词 / 长度" to "Prompt / length",
+    "通讯录里还没有角色:先添加角色再来调长度上限;提示词是全局的,现在就能改。" to
+      "No characters yet: add one to change the length cap; the prompt is global and can be edited now.",
+    "未标注来源" to "Unlabeled source",
+    "检索整个本地索引(全部角色 + 控制台的聊天片段与记忆总结);向量路不可用时自动退化成纯字面召回。" to
+      "Searches the whole local index (chat snippets and memory summaries of every character and the console); " +
+        "when the vector path is unavailable it degrades to literal recall.",
+    "分词 → 向量化 → 三路融合,稍等。" to "Tokenize → embed → merge three paths; one moment.",
+    "比如某个物品名、地点或一句约定,看本地检索能召回哪些片段。" to
+      "Try an item name, a place or a promise to see which snippets local search recalls.",
+    "索引里的内容要跟关键字对得上;新聊的对话会在下次后台回填后才进索引。" to
+      "The indexed content has to match the keyword; new chats enter the index after the next background backfill.",
+    "控制台" to "Console",
+    "危险操作" to "Danger zone",
+    "这里调的是记忆总结的行为(提示词 / 长度上限);记忆库页只展示总结出来的数据。" to
+      "This page tunes how summaries are produced (prompt / length cap); the memory page only shows the data.",
+    "把选中目标的全部总结、错误日志都删掉(滑块值与当前进度保留),删除后无法恢复。" to
+      "Deletes every summary and error log of the selected target (the slider value and progress are kept); " +
+        "this cannot be undone.",
+    "清空这些记忆?" to "Clear this memory?",
+    "只作用于旧版归档总结;新记忆库的总结固定用内置模板。" to
+      "Only affects the legacy archive summaries; summaries in the new memory store always use the built-in template.",
     "把每段记忆按发生时间排成一条线,方便按时间回看角色经历过什么。" to
       "Lines every memory up by the time it happened, so you can look back at what the character has been through.",
     "把反复出现的人、地点与约定沉淀成长期设定,不必每次都从总结里推断。" to
@@ -331,6 +376,16 @@ internal object EnStrings {
     "恢复默认" to "Restore default",
     "已恢复内置模板" to "Built-in template restored",
     "已保存,下次总结生效" to "Saved; takes effect on the next summary",
+    "只影响这个角色的记忆,其他角色各自独立。" to
+      "Only affects this character's memory; every other character keeps its own settings.",
+    "只对这个角色生效(其他角色各自独立)。" to
+      "Applies to this character only (every other character keeps its own).",
+    "清空这个角色的即时记忆" to "Clear this character's immediate memory",
+    "只清这个角色:总结与错误日志全删(滑块值与当前进度保留),删除后无法恢复。" to
+      "Clears this character only: every summary and error log is deleted (the slider value and current progress " +
+        "are kept). This cannot be undone.",
+    "已清空,之后新聊的轮次从头开始攒" to
+      "Cleared; rounds from now on will be collected from scratch",
     "总结提示词" to "Summary prompt",
     "自定义" to "Custom",
     "内置模板" to "Built-in template",
@@ -415,6 +470,7 @@ internal object EnStrings {
     "朋友" to "Friend",
     "个人资料" to "Profile",
     "还没有聊天记录" to "No messages yet",
+    "这里还没有可以导出的内容。" to "Nothing to export here yet.",
 
     // ---- 设置 ----
     "界面语言" to "Language",
@@ -584,13 +640,27 @@ internal object EnStrings {
       "All ${m.g(1)} chats and their ${m.g(2)} messages will be deleted and cannot be recovered." +
         "\n\nCharacters, memory and model settings are not affected."
     },
-    Regex("导入(聊天记录|角色卡|记忆库|模型配置)") to { m ->
+    Regex("导入(聊天记录|角色卡|记忆库|模型配置|软件备份)") to { m ->
       "Import " + when (m.g(1)) {
         "聊天记录" -> "chat history"
         "角色卡" -> "characters"
         "记忆库" -> "memory"
+        "软件备份" -> "full backup"
         else -> "model settings"
       }
+    },
+    Regex("导出(聊天记录|角色卡|记忆库|模型配置|软件备份)") to { m ->
+      "Export " + when (m.g(1)) {
+        "聊天记录" -> "chat history"
+        "角色卡" -> "characters"
+        "记忆库" -> "memory"
+        "软件备份" -> "full backup"
+        else -> "model settings"
+      }
+    },
+    Regex("会把 (.+?) 个角色、(.+?) 个会话\\((.+?) 条消息\\)与 (.+?) 个模型配置一起打包。") to { m ->
+      "Packs ${m.g(1)} characters, ${m.g(2)} chats (${m.g(3)} messages) and " +
+        "${m.g(4)} model settings into one file."
     },
     Regex("应用版本 (.+)") to { m ->
       "App version " + if (m.g(1) == "未知") "unknown" else m.g(1)

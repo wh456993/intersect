@@ -10,32 +10,24 @@ import org.json.JSONObject
 class BackupFormatException(message: String) : Exception(message)
 
 /**
- * 可以单独导出 / 导入的四类内容。
+ * 可以单独导出 / 导入的几类内容。
  *
- * 每一类都独立成一份 `.json` 文件:只想带走角色设定就只导角色卡,不想让密钥离开本机就不导模型配置。
- * [key] 是写进备份文件的稳定标识,不随文案改动;[fileTag] 只用于文件名。
+ * 界面上的卡片是三类 + 一份整包:聊天记录、角色卡、模型配置,以及把全部数据打成一份的 [Full]。
+ * 记忆不再单独成卡 —— 它跟着会话走:导出聊天记录时把所选会话各自的记忆一起带走,
+ * 恢复时也只写回这几条会话的记忆。[Memories] 保留下来只是为了还能打开旧的记忆库备份文件。
+ *
+ * [key] 是写进备份文件的稳定标识,不随文案改动。
  */
-enum class BackupSection(val key: String, val label: String, val fileTag: String) {
-  Chats(
-    key = "chats",
-    label = "聊天记录",
-    fileTag = "chats",
-  ),
-  Characters(
-    key = "characters",
-    label = "角色卡",
-    fileTag = "characters",
-  ),
-  Memories(
-    key = "memories",
-    label = "记忆库",
-    fileTag = "memories",
-  ),
-  ApiKeys(
-    key = "apiKeys",
-    label = "模型配置",
-    fileTag = "apikeys",
-  );
+enum class BackupSection(val key: String, val label: String) {
+  Chats(key = "chats", label = "聊天记录"),
+  Characters(key = "characters", label = "角色卡"),
+
+  /** 旧版单独导出记忆库时用过;界面已不再为它建卡片,只用于读取旧备份。 */
+  Memories(key = "memories", label = "记忆库"),
+  ApiKeys(key = "apiKeys", label = "模型配置"),
+
+  /** 整包:角色卡 + 全部会话(含记忆)+ 模型配置一起打走,换机搬数据用,不追求好看的格式。 */
+  Full(key = "full", label = "软件备份");
 
   companion object {
     fun ofKey(key: String): BackupSection? = entries.firstOrNull { it.key == key }
@@ -59,16 +51,15 @@ data class BackupCounts(
   /**
    * 一句规模概览。
    *
-   * 一份备份只装一类内容,所以这里只会命中一项 —— 不拼成一长串「A · B · C」,
-   * 那样整串查不到翻译表,英文模式会静默退化成中文。
+   * 单类导出只会命中一项(英文模式下能命中翻译表);整包、或者带记忆的会话备份会拼成
+   * 「A · B」多段 —— 那串是运行时拼出来的,英文模式下查不到翻译,会退回中文原文。
    */
-  fun summary(): String = when {
-    characters > 0 -> "$characters 个角色"
-    chats > 0 -> "$chats 个会话($messages 条消息)"
-    memories > 0 -> "$memories 条记忆"
-    apiKeys > 0 -> "$apiKeys 个模型配置"
-    else -> "没有内容"
-  }
+  fun summary(): String = buildList {
+    if (characters > 0) add("$characters 个角色")
+    if (chats > 0) add("$chats 个会话($messages 条消息)")
+    if (memories > 0) add("$memories 条记忆")
+    if (apiKeys > 0) add("$apiKeys 个模型配置")
+  }.joinToString(" · ").ifEmpty { "没有内容" }
 
   fun toJson(): JSONObject = JSONObject().apply {
     put("characters", characters)
@@ -268,6 +259,9 @@ object BackupFormat {
       BackupSection.Chats -> if (chats == null) throw mismatch()
       BackupSection.Memories -> if (memories == null) throw mismatch()
       BackupSection.ApiKeys -> if (apiKeys == null) throw mismatch()
+      // 整包里记忆可能一条都没有(从没总结过),所以只有这三段是必需的
+      BackupSection.Full ->
+        if (characters == null || chats == null || apiKeys == null) throw mismatch()
     }
 
     return BackupPayload(characters, chats, memories, apiKeys, avatars)
