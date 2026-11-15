@@ -9,7 +9,7 @@ package com.reimei.intersect.data
  *
  * [fromRound] / [toRound] 是覆盖的轮次区间(从 1 开始,「用户一句 + 角色一句」算一轮);
  * [createdAt] 是生成时的本地秒级时间戳(epoch second),显示时再按本地时区格式化;
- * [targetTokens] 是当时滑块定下的目标长度,[actualTokens] 是生成后用 [TokenEstimator] 估出来的实际长度。
+ * [targetTokens] 是当时滑块定下的长度上限(实际长度在其与 250 token 之间按内容浮动),[actualTokens] 是生成后用 [TokenEstimator] 估出来的实际长度。
  */
 data class ImmediateMemory(
   val id: String,
@@ -40,7 +40,7 @@ data class ImmediateMemory(
  */
 data class ImmediateMemoryState(
   val friendId: String,
-  /** 总结目标长度(token),由记忆库页的滑块调节。 */
+  /** 总结长度上限(token),由记忆库页的滑块调节;实际长度在 250 token 到该值之间按内容浮动。 */
   val targetTokens: Int = TARGET_DEFAULT,
   /** 这个角色累计完成过多少轮对话(每完成一轮 +1)。 */
   val rounds: Int = 0,
@@ -129,12 +129,13 @@ data class ImmediateMemoryState(
     /** 请求体里注入最近几条总结。 */
     const val INJECT_COUNT = 3
 
-    const val TARGET_MIN = 200
+    /** 实际长度的下限:总结最少写到 250 token,也是滑块的最小档。 */
+    const val TARGET_MIN = 250
     const val TARGET_MAX = 600
     const val TARGET_DEFAULT = 400
 
-    /** 滑块的步长:200~600 之间每 20 token 一档,共 21 档。 */
-    const val TARGET_STEP = 20
+    /** 滑块的步长:250~600 之间每 25 token 一档,共 15 档。 */
+    const val TARGET_STEP = 25
 
     const val ERROR_LOG_LIMIT = 20
 
@@ -198,11 +199,13 @@ object MemoryRounds {
 }
 
 /**
- * 记忆上下文在请求体里的格式。
+ * 记忆内容在请求体里的格式。
  *
- * 记忆块单独占一条 user 消息(绝不和「当前用户输入」合并),前后带固定的首尾行,
- * 让模型一眼看出这段是**角色过去的经历**而不是用户此刻说的话。
- * [RULES] 拼在 system 里,每轮一字不改 —— 内容稳定,服务商的前缀缓存才有用。
+ * 主聊天已经不再用它拼报文:记忆只作为**状态快照**里的【记忆库】小节出现
+ * (见 [ChatService.snapshotBlock])。这里留下的 [block] 只服务开发者控制台,
+ * [RULES] 则仍然是主聊天 system 里那段逐字不变的「记忆使用规则」。
+ *
+ * 措辞上刻意同时覆盖两种形态(「记忆库」小节与「记忆上下文」段落),因为它们指同一件事。
  */
 object MemoryInject {
   const val HEADER = "【记忆上下文|角色过去经历,非用户发言】"
@@ -212,9 +215,9 @@ object MemoryInject {
   /** system 里的记忆使用规则。措辞固定,避免每轮变化破坏前缀缓存。 */
   val RULES: String = buildString {
     append("记忆使用规则:\n")
-    append("1. 后面的「记忆上下文」是角色过去的经历,不是用户此刻的发言。\n")
+    append("1. 状态快照里的「记忆库」小节(以及开发者控制台里的「记忆上下文」段落)是角色过去的经历,不是用户此刻的发言。\n")
     append("2. 记忆与用户当前输入冲突时,一律以当前输入为准。\n")
-    append("3. 不得把记忆内容当作「用户说过的话」引用或复述,也不要提及「即时记忆层」「总结」这类标签。\n")
+    append("3. 不得把记忆内容当作「用户说过的话」引用或复述,也不要提及「记忆库」「即时记忆层」「总结」这类标签。\n")
     append("4. 记忆只用来保持角色连贯,不需要主动说明自己记得什么。")
   }
 

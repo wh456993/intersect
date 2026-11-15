@@ -82,6 +82,8 @@ object MemoryJobs {
       targetTokens = state.targetTokens,
       // 总结规则:开发者模式下可以在记忆库页改成自己的版本
       template = MemoryPromptStore.template(),
+      // 元信息:这一批对话结束时的状态。AI 据此在记忆正文里写状态变化,并按剧情决定 buff 词条
+      meta = effectiveMeta(context, friendId),
     )
     // 总结也是要花钱的一次请求:和其他调用一样落一条消耗流水。
     // 放在纪元判断**之前**:无论结果最终是否被采用,这次请求都已经计费了,
@@ -130,5 +132,17 @@ object MemoryJobs {
       is MemorySummaryResult.Fail -> MemoryStore.recordError(context, friendId, result.message)
     }
     return result
+  }
+
+  /**
+   * 总结要用的元信息:**套好时钟**的那一份(本体代入走真实时间,角色代入走剧情时钟 / 手填值)。
+   *
+   * 扮演模式得从角色记录里查 —— 总结有两条入口(自动触发 / 记忆库页手动),它们手上只有 friendId;
+   * 开发者控制台挂在保留 id 上,查不到就按角色代入算。
+   */
+  private fun effectiveMeta(context: Context, friendId: String): MetaInfo {
+    val mode = FriendsStore.load(context).firstOrNull { it.id == friendId }?.roleplayMode
+      ?: RoleplayMode.AVATAR_BASED
+    return SceneTime.applyTo(MetaInfoStore.load(context, friendId), mode)
   }
 }

@@ -24,14 +24,39 @@ object MemoryStore {
     val raw = prefsOf(context).getString(keyOf(friendId), null)
       ?: return ImmediateMemoryState.empty(friendId)
     return try {
-      fromJson(friendId, JSONObject(raw))
+      stateFromJson(friendId, JSONObject(raw))
     } catch (e: Exception) {
       ImmediateMemoryState.empty(friendId)
     }
   }
 
   fun save(context: Context, state: ImmediateMemoryState) {
-    prefsOf(context).edit().putString(keyOf(state.friendId), toJson(state).toString()).apply()
+    prefsOf(context).edit().putString(keyOf(state.friendId), stateToJson(state).toString()).apply()
+  }
+
+  /**
+   * 本机所有角色的即时记忆状态(备份用)。
+   *
+   * 按 SharedPreferences 里实际存在的条目遍历,而不是按好友列表:角色被删掉时记忆也会一起删,
+   * 但万一真留下孤儿条目,它同样是「本机有的记忆」,备份与统计都应该看得见。
+   */
+  fun loadAll(context: Context): List<ImmediateMemoryState> =
+    prefsOf(context).all.entries.mapNotNull { (key, value) ->
+      if (!key.startsWith(KEY_PREFIX)) return@mapNotNull null
+      val friendId = key.removePrefix(KEY_PREFIX).takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+      val raw = value as? String ?: return@mapNotNull null
+      runCatching { stateFromJson(friendId, JSONObject(raw)) }.getOrNull()
+    }
+
+  /** 整份替换所有角色的记忆:备份「覆盖」恢复用。不在 [states] 里的角色会被清掉。 */
+  fun replaceAll(context: Context, states: List<ImmediateMemoryState>) {
+    val prefs = prefsOf(context)
+    val editor = prefs.edit()
+    prefs.all.keys.filter { it.startsWith(KEY_PREFIX) }.forEach { editor.remove(it) }
+    states.forEach { state ->
+      editor.putString(keyOf(state.friendId), stateToJson(state).toString())
+    }
+    editor.apply()
   }
 
   /**
@@ -134,7 +159,8 @@ object MemoryStore {
   private fun prefsOf(context: Context): SharedPreferences =
     context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-  private fun toJson(state: ImmediateMemoryState): JSONObject = JSONObject().apply {
+  /** 记忆状态的 JSON 表示;备份([BackupFormat])复用同一套字段。 */
+  internal fun stateToJson(state: ImmediateMemoryState): JSONObject = JSONObject().apply {
     put("target", state.targetTokens)
     put("rounds", state.rounds)
     put("covered", state.coveredRounds)
@@ -161,7 +187,7 @@ object MemoryStore {
     put("summaries", items)
   }
 
-  private fun fromJson(friendId: String, obj: JSONObject): ImmediateMemoryState {
+  internal fun stateFromJson(friendId: String, obj: JSONObject): ImmediateMemoryState {
     val summaries = mutableListOf<ImmediateMemory>()
     obj.optJSONArray("summaries")?.let { array ->
       for (index in 0 until array.length()) {
