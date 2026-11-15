@@ -63,10 +63,28 @@ intersect 源代码以 Apache License 2.0 发布,全文见仓库根目录的 LIC
     Copyright (c) Microsoft Corporation. All rights reserved.
 
   bge-micro-v2 句向量模型(INT8 量化权重)
-    本地语义检索所用的文本向量化模型,权重随 APK 打包,
-    assets/models/bge-micro-v2-int8.onnx。
+    本地语义检索所用的文本向量化模型,权重与词表随 APK 打包:
+    assets/models/bge-micro-v2-int8.onnx、assets/models/vocab.txt。
     https://huggingface.co/Xenova/bge-micro-v2
-    源自 BAAI BGE (BAAI General Embedding) 系列模型权重。
+    源自 BAAI BGE (BAAI General Embedding) 系列模型权重,上游以 MIT 许可发布:
+    https://github.com/FlagOpen/FlagEmbedding
+    Copyright (c) 2022 BAAI. All rights reserved.
+
+====================================================================
+仅构建期 / 测试期依赖(不随 APK 分发)
+====================================================================
+
+  AndroidX Compose UI Tooling 1.5.4
+    仅 debug 包使用的预览与布局检查器,release 包不包含该组件。
+    https://developer.android.com/jetpack/androidx/releases/compose
+
+  JUnit 4.13.2(EPL-1.0)
+    JVM 单元测试运行时。
+    https://github.com/junit-team/junit4
+
+  AndroidX Test Ext JUnit 1.1.5 / Espresso Core 3.5.1(Apache-2.0)
+    设备端测试运行器与界面断言。
+    https://developer.android.com/jetpack/androidx/releases/test
 
 ====================================================================
 网络与数据说明
