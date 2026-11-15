@@ -3,6 +3,8 @@ plugins {
   id 'com.android.application' version '8.13.0' apply false
   id 'org.jetbrains.kotlin.android' version '2.1.0' apply false
   id 'org.jetbrains.kotlin.plugin.compose' version '2.1.0' apply false
+  // KSP:Room 的编译期注解处理(生成 DAO/Database 实现),与 Kotlin 2.1.0 一一对应的版本
+  id 'com.google.devtools.ksp' version '2.1.0-1.0.29' apply false
 }
 
 tasks.register('clean', Delete) {
