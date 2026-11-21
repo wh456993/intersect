@@ -203,6 +203,8 @@ API 密钥作为请求头的一部分发送至用户配置的端点。用户输�
 | MANAGE_EXTERNAL_STORAGE | 用量导出与开发日志导出向外部存储根目录写入文件（角色卡与聊天备份导入/导出已走 SAF，不依赖该权限） | 首次激活页四项授权之一（标题“访问所有文件”） | 特殊权限，系统设置 | 是 | 用量导出与开发日志导出不可用；两处均有应用目录兜底 |
 | READ_EXTERNAL_STORAGE / WRITE_EXTERNAL_STORAGE | 兼容 Android 10 及以下的旧系统存储访问 | 用户主动导入/导出时（maxSdkVersion=29） | 运行时权限；旧系统存储分区兼容行为按 API 级别而异 | 是 | 旧系统上的导入/导出功能不可用 |
 
+表格说明：上表所列为本项目 `AndroidManifest.xml` 源码中声明的 9 项权限。实际安装包在构建期由 AndroidX 依赖自动合并引入 `WAKE_LOCK`、`ACCESS_NETWORK_STATE` 及签名级自定义权限 `<applicationId>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` 三项；三者均由依赖库声明，应用侧无对应的独立数据收集、外发或后台扫描行为，亦不改变第 9.1 节关于网络请求范围的结论。
+
 补充声明：
 
 （a）通知内容仅指示常驻服务的运行状态，不包含对话内容，不用于营销或推广。
