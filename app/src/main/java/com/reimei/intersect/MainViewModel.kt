@@ -1047,14 +1047,19 @@ class MainViewModel : ViewModel() {
   }
 
   /**
-   * 回滚到某条消息之前:这条以及它之后的全部消息一起删掉。
+   * 回滚到某条**自己发的**消息之前:这条以及它之后的全部消息一起删掉,返回是否真的截断了。
    *
-   * 与控制台的 `rollbackTo` 同一套语义,只是对象是主聊天的会话:
-   * 按对象身份定位(不依赖 equals,内容相同的两条不会串),落盘后校正记忆层轮数。
-   * 记忆索引、物品、通讯录都不动 —— 回滚的是对话本身。
+   * 只接受用户自己发的消息(界面也只对这类消息露出回滚入口):回滚的语义是
+   * 「这句话我不发了,改一改重说」,所以调用方会把它的原文放回输入框。
+   * 对方的消息没有这个语义,传进来也不会动任何数据。
+   *
+   * 按对象身份定位(不依赖 equals,内容相同的两条不会串),落盘后校正记忆层轮数:
+   * 旧 MemoryStore 与新 memory.db(微/大总结)都按当前轮数裁剪,被删掉的那段剧情
+   * 不会再被注入请求体。记忆索引、物品、通讯录不动 —— 回滚的是对话本身。
    */
-  fun rollbackTo(context: Context, chat: Chat, msg: Msg) {
-    if (truncateAt(chat.msgs, msg) < 0) return
+  fun rollbackTo(context: Context, chat: Chat, msg: Msg): Boolean {
+    if (msg.from != User.Me) return false
+    if (truncateAt(chat.msgs, msg) < 0) return false
     saveChats(context)
     pruneSelection(chat)
     val rounds = MemoryRounds.group(chat.msgs.toList()).size
@@ -1062,6 +1067,7 @@ class MainViewModel : ViewModel() {
     MemoryStore.reconcile(context.applicationContext, chat.friend.id, rounds)
     // 新库的总结同样按轮次裁剪:否则回滚之后还会把已删掉的剧情注入,写水位也会卡住
     MemoryRepository.trimBeyondAsync(context.applicationContext, chat.friend.id, rounds)
+    return true
   }
 
   /**

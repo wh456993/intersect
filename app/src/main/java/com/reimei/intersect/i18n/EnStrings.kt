@@ -364,7 +364,9 @@ internal object EnStrings {
     "全选" to "Select all",
     "取消全选" to "Deselect all",
     "回滚" to "Roll back",
-    "回滚到这里" to "Roll back to here",
+    "确认回滚" to "Confirm rollback",
+    "将删除此消息之后的所有消息。此操作不可撤销,确定继续吗?" to
+      "All messages after this one will be deleted. This cannot be undone. Continue?",
     "退出多选" to "Exit multi-select",
     "自定义总结提示词" to "Custom summary prompt",
     "当前:自定义" to "Current: custom",
@@ -707,15 +709,6 @@ internal object EnStrings {
     Regex("已选择 (.+?) 条") to { m -> "${m.g(1)} selected" },
     Regex("选中的 (.+?) 条消息将被删除,且无法恢复。") to { m ->
       "The ${m.g(1)} selected messages will be deleted and cannot be recovered."
-    },
-    Regex("从这条起的 (.+?) 条都会被删除,回到它之前的状态。删除后无法恢复。") to { m ->
-      // 英文没有量词问题,但单复数要处理:1 条时说 the 1 message 很别扭
-      if (m.g(1) == "1") {
-        "This message will be deleted and you will be back to the state before it. This cannot be undone."
-      } else {
-        "The ${m.g(1)} messages starting from this one will be deleted, returning to the state before it. " +
-          "This cannot be undone."
-      }
     },
     // 记忆库:总结进行中 / 结果 / 状态条与说明(轮数、长度上限都由常量拼出来)
     Regex("正在总结前 (.+?) 轮对话\\.\\.\\.") to { m -> "Summarizing the last ${m.g(1)} rounds..." },

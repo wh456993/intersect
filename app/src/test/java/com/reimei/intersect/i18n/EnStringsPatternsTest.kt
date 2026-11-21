@@ -3,6 +3,7 @@ package com.reimei.intersect.i18n
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -36,20 +37,21 @@ class EnStringsPatternsTest {
 
   @Test
   fun `回滚确认正文会翻译成英文`() {
+    // 文案改成整句后不再拼条数,走整句表;标题与确认按钮同名,共用一条
     assertEquals(
-      "The 3 messages starting from this one will be deleted, returning to the state before it. " +
-        "This cannot be undone.",
-      assertTranslated("从这条起的 3 条都会被删除,回到它之前的状态。删除后无法恢复。")
+      "All messages after this one will be deleted. This cannot be undone. Continue?",
+      assertTranslated("将删除此消息之后的所有消息。此操作不可撤销,确定继续吗?")
     )
+    assertEquals("Confirm rollback", assertTranslated("确认回滚"))
   }
 
   @Test
-  fun `只删一条时的英文不再出现 the 1 message`() {
-    // 回滚最后一条时 N==1:中文能说「从这条起的 1 条」,英文照抄会很别扭
-    val en = assertTranslated("从这条起的 1 条都会被删除,回到它之前的状态。删除后无法恢复。")
-    assertEquals(
-      "This message will be deleted and you will be back to the state before it. This cannot be undone.",
-      en
+  fun `回滚确认不再有带条数的旧文案`() {
+    // 旧的「从这条起的 N 条」规则与条目都要清掉,免得改回去又插值拼出查不到的中文
+    assertFalse("整句表里还留着「回滚到这里」", EnStrings.exact.containsKey("回滚到这里"))
+    assertTrue(
+      "规则表里还留着「从这条起的」",
+      EnStrings.patterns.none { it.first.pattern.contains("从这条起的") }
     )
   }
 

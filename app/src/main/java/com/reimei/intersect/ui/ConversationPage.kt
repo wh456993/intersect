@@ -120,6 +120,9 @@ fun ConversationPage(
   var pendingDelete by remember(chat) { mutableStateOf<List<Msg>?>(null) }
   // 待确认回滚的那条消息(它和它之后的都会被删掉),null 表示没有弹确认框
   var pendingRollback by remember(chat) { mutableStateOf<Msg?>(null) }
+  // 输入框的内容由这里持有(而不是 ChatBottomBar 内部 remember):
+  // 回滚一条自己发的消息时要把原文放回输入框,这份文本必须能被外部写入。
+  var inputDraft by remember(chat) { mutableStateOf("") }
 
   // 菜单开着时,返回先收起菜单;ConversationPage 比首页的预测性返回后注册,所以它优先
   BackHandler(enabled = menuMsg != null) { menuMsg = null }
@@ -182,6 +185,8 @@ fun ConversationPage(
         )
         ChatBottomBar(
           onSend = { text -> viewModel.send(context, chat, text) },
+          draft = inputDraft,
+          onDraftChange = { inputDraft = it },
           sheetOpen = attachPanelOpen,
           onSheetOpenChange = { open ->
             attachPanelOpen = open
@@ -348,27 +353,26 @@ fun ConversationPage(
 
   val confirmRollback = pendingRollback
   if (confirmRollback != null) {
-    // 条数在弹窗里实时算:打开弹窗到点确认之间消息可能又变了(比如对方的回复刚到)
     val index = chat.msgs.indexOfFirst { it === confirmRollback }
-    // count 是「从这条起到底」的总条数(含它自己),文案照这个说,不再写「以及它之后的 N 条」
-    val count = if (index < 0) 0 else chat.msgs.size - index
     AlertDialog(
       onDismissRequest = { pendingRollback = null },
-      title = { Text("回滚到这里") },
+      title = { Text("确认回滚") },
       text = {
         Text(
           if (index < 0) "这条消息已经不在了。"
-          else "从这条起的 $count 条都会被删除,回到它之前的状态。删除后无法恢复。"
+          else "将删除此消息之后的所有消息。此操作不可撤销,确定继续吗?"
         )
       },
       confirmButton = {
         // 目标已不在时没什么可回滚的,只留一个关闭按钮
         if (index >= 0) {
           TextButton(onClick = {
-            viewModel.rollbackTo(context, chat, confirmRollback)
+            // 先取出原文再截断,回滚完这条对象已经不在会话里了
+            val restored = confirmRollback.text
+            if (viewModel.rollbackTo(context, chat, confirmRollback)) inputDraft = restored
             viewModel.clearSelection()
             pendingRollback = null
-          }) { Text("回滚", color = AppTheme.colors.badge) }
+          }) { Text("确认回滚", color = AppTheme.colors.badge) }
         }
       },
       dismissButton = {
@@ -558,6 +562,15 @@ private fun ChatStatusLine(
 
 /** 输入框右侧按钮的直径:附件和发送必须一样大,并排时视觉重量才一致。 */
 private val BAR_BUTTON_SIZE = 36.dp
+
+/** 输入文字的行高:输入框能长到多高由它算出来,不能交给字体 metrics 决定。 */
+private val INPUT_LINE_HEIGHT = 20.sp
+/** 文字与输入框底色之间上下各留多少。 */
+private val INPUT_TEXT_PADDING = 10.dp
+/** 单行时输入框的视觉高度(行高 + 上下留白),和固定高度那一版保持一致。 */
+private val INPUT_MIN_HEIGHT = 40.dp
+/** 输入框最多长到几行:再多就不再变高,改成框内滚动。 */
+private const val INPUT_MAX_LINES = 4
 /** 按钮外圈留白:扩大点击区,同时不让按钮贴住输入框和屏幕右边缘。 */
 private val BAR_BUTTON_PADDING = 4.dp
 
@@ -687,17 +700,28 @@ private fun ChatInputRow(
     LaunchedEffect(textInteraction) {
       textInteraction.interactions.collect { if (it is PressInteraction.Press) pressed.value() }
     }
+    // 输入框高度跟着内容长:单行时仍是 40dp,最多长到 4 行,再多就固定在 4 行高、内容在框内滚动。
+    // 行高换成 dp 时已经把系统字体缩放算进去,大字号下 4 行的高度也跟着变高。
+    val maxInputHeight = with(LocalDensity.current) {
+      INPUT_LINE_HEIGHT.toDp() * INPUT_MAX_LINES + INPUT_TEXT_PADDING * 2
+    }
     BasicTextField(
       editingText, onValueChange = writeText,
       Modifier
         .weight(1f)
         .padding(4.dp, 8.dp)
-        .height(40.dp)
+        // 不能写死 height:写死之后内容多少行都显示在同一格里,多出来的直接被裁掉
+        .heightIn(min = INPUT_MIN_HEIGHT, max = maxInputHeight)
         .clip(MaterialTheme.shapes.small)
         .background(AppTheme.colors.textFieldBackground)
-        .padding(start = 8.dp, top = 10.dp, end = 8.dp),
+        .padding(start = 8.dp, top = INPUT_TEXT_PADDING, end = 8.dp, bottom = INPUT_TEXT_PADDING),
       cursorBrush = SolidColor(AppTheme.colors.textPrimary),
-      textStyle = TextStyle(fontSize = 15.sp, color = AppTheme.colors.textPrimary),
+      textStyle = TextStyle(
+        fontSize = 15.sp,
+        lineHeight = INPUT_LINE_HEIGHT,
+        color = AppTheme.colors.textPrimary
+      ),
+      maxLines = INPUT_MAX_LINES,
       keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
       keyboardActions = KeyboardActions(onSend = { send() }),
       interactionSource = textInteraction,
@@ -902,7 +926,10 @@ fun MessageItem(
       ) {
         MenuRow("复制") { onCopy() }
         MenuRow("删除") { onDelete() }
-        MenuRow("回滚") { onRollback() }
+        // 回滚 = 「这条我说的话没发出去」:只能用于自己发的消息。
+        // 对方的消息没有「重说一遍」的语义,截断到它之前会连带删掉自己那句话,
+        // 且没有原话可以放回输入框,所以干脆不提供这个入口。
+        if (mine) MenuRow("回滚") { onRollback() }
         MenuRow("多选") { onMultiSelect() }
       }
     }

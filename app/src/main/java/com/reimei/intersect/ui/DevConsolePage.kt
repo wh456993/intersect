@@ -590,15 +590,13 @@ fun DevConsole(
     val confirmRollback = pendingRollback
     if (confirmRollback != null) {
       val index = messages.indexOfFirst { it === confirmRollback }
-      // 与主聊天同一个口径:count 含被点的那条自己,文案就写「从这条起的 N 条」
-      val count = if (index < 0) 0 else messages.size - index
       AlertDialog(
         onDismissRequest = { pendingRollback = null },
-        title = { Text("回滚到这里") },
+        title = { Text("确认回滚") },
         text = {
           Text(
             if (index < 0) "这条消息已经不在了。"
-            else "从这条起的 $count 条都会被删除,回到它之前的状态。删除后无法恢复。"
+            else "将删除此消息之后的所有消息。此操作不可撤销,确定继续吗?"
           )
         },
         confirmButton = {
@@ -607,7 +605,7 @@ fun DevConsole(
               rollbackTo(confirmRollback)
               selected.clear()
               pendingRollback = null
-            }) { Text("回滚", color = AppTheme.colors.badge) }
+            }) { Text("确认回滚", color = AppTheme.colors.badge) }
           }
         },
         dismissButton = {
